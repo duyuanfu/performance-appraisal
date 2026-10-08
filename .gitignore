@@ -1,0 +1,41 @@
+# Operating System
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editors
+.idea/
+.vscode/
+*.iml
+*.sublime-workspace
+*.sublime-project
+
+# Maven & Java
+target/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Node & Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+dist/
+dist-ssr/
+*.local
+
+# Logs & Data
+*.log
+logs/
+backend/data/
+data/uploads/
+data/*.db
+data/*.trace.db

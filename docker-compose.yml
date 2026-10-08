@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # 1. MySQL 数据库服务
+  mysql:
+    image: mysql:8.0
+    container_name: appraisal-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: appraisal_db
+      TZ: Asia/Shanghai
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - appraisal-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 2. 后端 Spring Boot 3 服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: appraisal-backend
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: appraisal_db
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      TZ: Asia/Shanghai
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/uploads:/app/data/uploads
+    networks:
+      - appraisal-net
+
+  # 3. 前端 React + Nginx 服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: appraisal-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - appraisal-net
+
+volumes:
+  mysql-data:
+    driver: local
+
+networks:
+  appraisal-net:
+    driver: bridge

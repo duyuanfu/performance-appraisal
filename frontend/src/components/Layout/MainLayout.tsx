@@ -1,0 +1,319 @@
+import React, { useState } from 'react';
+import {
+  Layout,
+  Menu,
+  Button,
+  Space,
+  Tag,
+  Dropdown,
+  Typography,
+  Avatar,
+  Modal,
+  Form,
+  Input,
+  message,
+} from 'antd';
+import {
+  UserOutlined,
+  LogoutOutlined,
+  SwapOutlined,
+  AuditOutlined,
+  ProjectOutlined,
+  TeamOutlined,
+  TrophyOutlined,
+  CheckCircleOutlined,
+  LockOutlined,
+} from '@ant-design/icons';
+import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { changePasswordApi } from '../../api/auth';
+
+const { Header, Content, Sider } = Layout;
+const { Text } = Typography;
+
+const ROLE_NAME_MAP: Record<string, string> = {
+  ADMIN: '系统管理员',
+  LEADER: '中心领导',
+  EXPERT: '评审专家',
+  EMPLOYEE: '被考核人员',
+};
+
+const ROLE_COLOR_MAP: Record<string, string> = {
+  ADMIN: 'red',
+  LEADER: 'blue',
+  EXPERT: 'purple',
+  EMPLOYEE: 'green',
+};
+
+export const MainLayout: React.FC = () => {
+  const { user, activeRole, roles, switchRole, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Change password modal state
+  const [changePwdVisible, setChangePwdVisible] = useState(false);
+  const [submittingPwd, setSubmittingPwd] = useState(false);
+  const [pwdForm] = Form.useForm();
+
+  // Dynamic menu items based on active role
+  const getMenuItems = () => {
+    switch (activeRole) {
+      case 'ADMIN':
+        return [
+          {
+            key: '/monthly-admin',
+            icon: <AuditOutlined />,
+            label: '月度绩效管理',
+          },
+          {
+            key: '/annual-admin',
+            icon: <ProjectOutlined />,
+            label: '年度项目评审管理',
+          },
+          {
+            key: '/users',
+            icon: <TeamOutlined />,
+            label: '用户账号管理',
+          },
+        ];
+      case 'LEADER':
+        return [
+          {
+            key: '/leader-scoring',
+            icon: <CheckCircleOutlined />,
+            label: '月度绩效打分工作台',
+          },
+        ];
+      case 'EXPERT':
+        return [
+          {
+            key: '/expert-evaluation',
+            icon: <ProjectOutlined />,
+            label: '项目在线评审工作台',
+          },
+        ];
+      case 'EMPLOYEE':
+        return [
+          {
+            key: '/my-performance',
+            icon: <TrophyOutlined />,
+            label: '我的月度考核与排名',
+          },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const menuItems = getMenuItems();
+
+  const roleMenuItems = roles.map((r) => ({
+    key: r.roleCode,
+    label: (
+      <Space>
+        <span>{r.roleName}</span>
+        {r.roleCode === activeRole && <Tag color="blue">当前身份</Tag>}
+      </Space>
+    ),
+    onClick: () => {
+      switchRole(r.roleCode);
+      if (r.roleCode === 'ADMIN') navigate('/monthly-admin');
+      else if (r.roleCode === 'LEADER') navigate('/leader-scoring');
+      else if (r.roleCode === 'EXPERT') navigate('/expert-evaluation');
+      else if (r.roleCode === 'EMPLOYEE') navigate('/my-performance');
+    },
+  }));
+
+  const userActionMenuItems = [
+    {
+      key: 'change-password',
+      icon: <LockOutlined />,
+      label: '修改我的密码',
+      onClick: () => {
+        pwdForm.resetFields();
+        setChangePwdVisible(true);
+      },
+    },
+    {
+      type: 'divider' as const,
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      danger: true,
+      label: '退出登录',
+      onClick: () => {
+        logout();
+        navigate('/login');
+      },
+    },
+  ];
+
+  const handleChangePasswordSubmit = async () => {
+    try {
+      const values = await pwdForm.validateFields();
+      setSubmittingPwd(true);
+      await changePasswordApi({
+        oldPassword: values.oldPassword,
+        newPassword: values.newPassword,
+        confirmPassword: values.confirmPassword,
+      });
+      message.success('密码修改成功，请使用新密码重新登录！');
+      setChangePwdVisible(false);
+      logout();
+      navigate('/login');
+    } catch (e) {
+      // Handled
+    } finally {
+      setSubmittingPwd(false);
+    }
+  };
+
+  return (
+    <Layout style={{ minHeight: '100vh' }}>
+      <Header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: '#001529',
+          padding: '0 24px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <AuditOutlined style={{ fontSize: 24, color: '#1890ff', marginRight: 12 }} />
+          <Text strong style={{ color: '#ffffff', fontSize: 18, letterSpacing: 1 }}>
+            原料中心评审管理系统
+          </Text>
+        </div>
+
+        <Space size="large">
+          {/* Multi-role switcher */}
+          <Space>
+            <Text style={{ color: '#8c8c8c' }}>当前身份:</Text>
+            {roles.length > 1 ? (
+              <Dropdown menu={{ items: roleMenuItems }} placement="bottomRight">
+                <Button
+                  type="primary"
+                  ghost
+                  icon={<SwapOutlined />}
+                  style={{ borderRadius: 4 }}
+                >
+                  <Tag
+                    color={ROLE_COLOR_MAP[activeRole] || 'default'}
+                    style={{ marginRight: 4 }}
+                  >
+                    {ROLE_NAME_MAP[activeRole] || activeRole}
+                  </Tag>
+                  切换身份
+                </Button>
+              </Dropdown>
+            ) : (
+              <Tag color={ROLE_COLOR_MAP[activeRole] || 'default'}>
+                {ROLE_NAME_MAP[activeRole] || activeRole}
+              </Tag>
+            )}
+          </Space>
+
+          {/* User profile dropdown */}
+          <Dropdown menu={{ items: userActionMenuItems }} placement="bottomRight">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: 4,
+              }}
+            >
+              <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />
+              <div style={{ lineHeight: '1.2', textAlign: 'left' }}>
+                <div style={{ color: '#fff', fontWeight: 500 }}>{user?.realName}</div>
+                <div style={{ color: '#8c8c8c', fontSize: 12 }}>{user?.department}</div>
+              </div>
+            </div>
+          </Dropdown>
+        </Space>
+      </Header>
+
+      <Layout>
+        <Sider width={220} style={{ background: '#fff' }}>
+          <Menu
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            style={{ height: '100%', borderRight: 0 }}
+            items={menuItems}
+            onClick={({ key }) => navigate(key)}
+          />
+        </Sider>
+
+        <Layout style={{ padding: '20px', minHeight: 'calc(100vh - 64px)' }}>
+          <Content
+            style={{
+              padding: 24,
+              margin: 0,
+              minHeight: 280,
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 1px 4px rgba(0, 0, 0, 0.05)',
+            }}
+          >
+            <Outlet />
+          </Content>
+        </Layout>
+      </Layout>
+
+      {/* Change Password Modal */}
+      <Modal
+        title="修改登录密码"
+        open={changePwdVisible}
+        onOk={handleChangePasswordSubmit}
+        confirmLoading={submittingPwd}
+        onCancel={() => setChangePwdVisible(false)}
+        destroyOnClose
+      >
+        <Form form={pwdForm} layout="vertical">
+          <Form.Item
+            name="oldPassword"
+            label="当前原密码"
+            rules={[{ required: true, message: '请输入当前使用的原密码' }]}
+          >
+            <Input.Password placeholder="输入原密码" />
+          </Form.Item>
+
+          <Form.Item
+            name="newPassword"
+            label="设置新密码"
+            rules={[
+              { required: true, message: '请输入新密码' },
+              { min: 6, message: '新密码长度不能少于 6 位' },
+            ]}
+          >
+            <Input.Password placeholder="输入新密码（不少于6位）" />
+          </Form.Item>
+
+          <Form.Item
+            name="confirmPassword"
+            label="确认新密码"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: '请再次输入新密码确认' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('newPassword') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('两次输入的新密码不一致'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="再次输入新密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Layout>
+  );
+};

@@ -1,0 +1,103 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: performance-appraisal-backend
+  profiles:
+    active: prod
+
+  datasource:
+    # Connect to MySQL Server
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:appraisal_db}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+      encoding: UTF-8
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+app:
+  jwt:
+    secret: RawCenterAppraisalSecretKeyForJwtAuthentication20261005Secure!
+    expiration-hours: 24
+  upload:
+    dir: ./data/uploads/projects
+
+  # 业务参数配置：月度考核与年度项目评审默认指标
+  default-metrics:
+    monthly:
+      - metric-name: 工作能力
+        metric-desc: 专业业务技能与履职综合能力
+        max-score: 100.0000
+        weight: 25.0000
+        sort-order: 1
+      - metric-name: 工作质量
+        metric-desc: 工作成果质量、合规与标准执行
+        max-score: 100.0000
+        weight: 25.0000
+        sort-order: 2
+      - metric-name: 工作态度
+        metric-desc: 履职态度、敬业精神与团队协作意识
+        max-score: 100.0000
+        weight: 20.0000
+        sort-order: 3
+      - metric-name: 工作效率
+        metric-desc: 任务推进时效性与响应解决速度
+        max-score: 100.0000
+        weight: 15.0000
+        sort-order: 4
+      - metric-name: 工作业务量
+        metric-desc: 承担重点工作负荷及实际业务产出量
+        max-score: 100.0000
+        weight: 15.0000
+        sort-order: 5
+
+    annual-project:
+      - metric-name: 完成度
+        metric-desc: 项目目标达成与实际里程碑交付情况
+        max-score: 100.0000
+        weight: 20.0000
+        sort-order: 1
+      - metric-name: 质效
+        metric-desc: 项目产出质量标准与业务赋能效益
+        max-score: 100.0000
+        weight: 20.0000
+        sort-order: 2
+      - metric-name: 协作
+        metric-desc: 跨部门横向协同配合与资源整合度
+        max-score: 100.0000
+        weight: 20.0000
+        sort-order: 3
+      - metric-name: 效率
+        metric-desc: 进度推进节奏与关键节点把控效率
+        max-score: 100.0000
+        weight: 20.0000
+        sort-order: 4
+      - metric-name: 合规
+        metric-desc: 合规管理、规范运作与风险把控
+        max-score: 100.0000
+        weight: 20.0000
+        sort-order: 5
