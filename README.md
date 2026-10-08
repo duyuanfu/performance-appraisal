@@ -180,53 +180,60 @@ sudo apt install -y openjdk-17-jre-headless nginx mysql-server
 
 ---
 
-## 五、 Docker / Docker Compose 容器化一键部署（推荐）
+## 五、 Docker / Docker Compose 容器化一键部署（极简推荐）
 
-项目根目录已内置全套生产级 `Dockerfile` 与 `docker-compose.yml`，包含 MySQL 8.0 数据库、Spring Boot 3 后端和 Nginx 前端容器的自动化编排。
+前端与后端均已配置 **Docker 多阶段构建（Multi-Stage Build）**。**云服务器宿主机无需安装任何 Maven、JDK、Node.js、npm 或 MySQL**！只要服务器安装了 Docker，即可实现真正意义上的零环境依赖一键自动化部署。
 
 ### 1. 安装 Docker & Docker Compose
-在云服务器安装 Docker 环境：
+在云服务器上执行官方一键安装脚本（若已安装可跳过）：
 ```bash
-# 官方一键安装脚本
+# 官方 Docker 一键安装脚本
 curl -fsSL https://get.docker.com | bash -s docker
 sudo systemctl enable docker
 sudo systemctl start docker
+
+# 若尚未安装 docker-compose 插件（Ubuntu / Debian）：
+sudo apt install -y docker-compose-plugin || sudo apt install -y docker-compose
 ```
 
-### 2. 源码打包构建
-在部署前，先编译后端 Jar 包：
+### 2. 拉取代码并一键启动集群
+直接克隆仓库并一条命令拉起全部服务（Docker 容器内会自动拉取 Maven 镜像编译 Java 源码、拉取 Node 镜像构建前端静态资源）：
 ```bash
-cd backend
-mvn clean package -DskipTests
-cd ..
+# 1. 克隆代码仓库
+git clone https://github.com/duyuanfu/performance-appraisal.git
+cd performance-appraisal
+
+# 2. 一键构建并后台启动全套集群（MySQL + 后端 + 前端）
+docker compose up -d --build
+# （注：如果您的服务器使用的是老版本 docker-compose 命令，请执行：docker-compose up -d --build）
 ```
 
-### 3. 一键启动集群
-在项目根目录下直接运行：
+### 3. 检查服务健康状态
 ```bash
-docker-compose up -d --build
-```
-
-### 4. 检查服务健康状态
-```bash
-docker-compose ps
+docker compose ps
+# 或 docker-compose ps
 ```
 容器说明：
-- **`appraisal-mysql`**：MySQL 8.0 数据持久化挂载至 Docker Volume `mysql-data`；
-- **`appraisal-backend`**：Spring Boot 3 服务，等待 MySQL 健康检查通过后自动启动；PDF 文件自动持久化到 `./data/uploads`；
-- **`appraisal-frontend`**：Nginx 80 端口，承载前端单页应用并自动反向代理 API 流量。
+- **`appraisal-mysql`**：MySQL 8.0 容器，自动初始化数据库与数据表，数据持久化挂载至 Docker Volume `mysql-data`；
+- **`appraisal-backend`**：Spring Boot 3 服务，容器内自动编译打包，待 MySQL 就绪后自动启动；材料 PDF 持久化映射至本地 `./data/uploads`；
+- **`appraisal-frontend`**：Nginx 80 端口容器，内置前端生产页面并自动反向代理 API 流量至后端。
 
-### 5. 访问系统
-直接在浏览器访问服务器 IP 或域名：
+### 4. 访问系统
+在浏览器中直接访问服务器公网 IP 或域名：
 ```text
 http://<服务器公网IP>
 ```
+默认管理员账号：`admin`，默认密码：`password123`。
 
-### 6. 容器启停与维护命令
-- 查看实时运行日志：`docker-compose logs -f`
-- 重启所有服务：`docker-compose restart`
-- 停止并保留数据：`docker-compose down`
-- 重新构建最新镜像并启动：`docker-compose up -d --build`
+### 5. 常用运维与维护命令
+- 查看实时运行日志：`docker compose logs -f` 或 `docker compose logs -f backend`
+- 重启所有服务：`docker compose restart`
+- 停止服务（数据依然完整保留）：`docker compose down`
+- 代码更新后重新编译拉起：
+  ```bash
+  git pull
+  docker compose up -d --build
+  ```
 
 ---
 
