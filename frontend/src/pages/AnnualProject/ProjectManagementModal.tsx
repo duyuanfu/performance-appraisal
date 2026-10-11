@@ -11,6 +11,7 @@ import {
   Input,
   InputNumber,
   Typography,
+  Tooltip,
 } from 'antd';
 import {
   PlusOutlined,
@@ -162,14 +163,26 @@ export const ProjectManagementModal: React.FC<Props> = ({
     {
       title: '申报材料 (PDF)',
       key: 'material',
-      width: 200,
+      width: 220,
       render: (_: any, record: ProjectItemVO) => (
-        <Space direction="vertical" size="small">
+        <Space direction="vertical" size="small" style={{ maxWidth: '100%' }}>
           {record.hasMaterial ? (
-            <Space>
-              <Tag color="blue" icon={<FilePdfOutlined />}>
-                {record.materialPdfName || '已上传'}
-              </Tag>
+            <Space style={{ maxWidth: '100%', overflow: 'hidden' }}>
+              <Tooltip title={record.materialPdfName} placement="topLeft">
+                <Tag
+                  color="blue"
+                  icon={<FilePdfOutlined />}
+                  style={{
+                    maxWidth: 130,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    verticalAlign: 'middle',
+                  }}
+                >
+                  {record.materialPdfName || '已上传'}
+                </Tag>
+              </Tooltip>
               <Button
                 type="link"
                 size="small"
@@ -200,14 +213,26 @@ export const ProjectManagementModal: React.FC<Props> = ({
     {
       title: '附件材料 (PDF)',
       key: 'attachment',
-      width: 200,
+      width: 220,
       render: (_: any, record: ProjectItemVO) => (
-        <Space direction="vertical" size="small">
+        <Space direction="vertical" size="small" style={{ maxWidth: '100%' }}>
           {record.hasAttachment ? (
-            <Space>
-              <Tag color="cyan" icon={<FilePdfOutlined />}>
-                {record.attachmentPdfName || '已上传'}
-              </Tag>
+            <Space style={{ maxWidth: '100%', overflow: 'hidden' }}>
+              <Tooltip title={record.attachmentPdfName} placement="topLeft">
+                <Tag
+                  color="cyan"
+                  icon={<FilePdfOutlined />}
+                  style={{
+                    maxWidth: 130,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    verticalAlign: 'middle',
+                  }}
+                >
+                  {record.attachmentPdfName || '已上传'}
+                </Tag>
+              </Tooltip>
               <Button
                 type="link"
                 size="small"
@@ -300,6 +325,8 @@ export const ProjectManagementModal: React.FC<Props> = ({
         loading={loading}
         pagination={false}
         bordered
+        scroll={{ x: 960 }}
+        style={{ tableLayout: 'fixed' }}
       />
 
       {/* Edit/Create Project Modal */}

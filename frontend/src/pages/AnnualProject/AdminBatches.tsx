@@ -18,6 +18,7 @@ import {
   Divider,
   Alert,
   Radio,
+  Tooltip,
 } from 'antd';
 import {
   PlusOutlined,
@@ -413,12 +414,24 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
     {
       title: '申报材料 (PDF)',
       key: 'material',
-      width: 150,
+      width: 170,
       render: (_: any, r: ProjectItemVO) =>
         r.hasMaterial ? (
-          <Tag color="success" icon={<CheckCircleOutlined />}>
-            已上传 ({r.materialPdfName})
-          </Tag>
+          <Tooltip title={r.materialPdfName} placement="topLeft">
+            <Tag
+              color="success"
+              icon={<CheckCircleOutlined />}
+              style={{
+                maxWidth: 140,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                verticalAlign: 'middle',
+              }}
+            >
+              已上传 ({r.materialPdfName})
+            </Tag>
+          </Tooltip>
         ) : (
           <Tag color="error" icon={<CloseCircleOutlined />}>
             未上传
@@ -428,12 +441,24 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
     {
       title: '附件材料 (PDF)',
       key: 'attachment',
-      width: 150,
+      width: 170,
       render: (_: any, r: ProjectItemVO) =>
         r.hasAttachment ? (
-          <Tag color="success" icon={<CheckCircleOutlined />}>
-            已上传 ({r.attachmentPdfName})
-          </Tag>
+          <Tooltip title={r.attachmentPdfName} placement="topLeft">
+            <Tag
+              color="success"
+              icon={<CheckCircleOutlined />}
+              style={{
+                maxWidth: 140,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                verticalAlign: 'middle',
+              }}
+            >
+              已上传 ({r.attachmentPdfName})
+            </Tag>
+          </Tooltip>
         ) : (
           <Tag color="warning" icon={<CloseCircleOutlined />}>
             未上传
@@ -563,6 +588,8 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
           pagination={false}
           size="small"
           bordered
+          scroll={{ x: 750 }}
+          style={{ tableLayout: 'fixed' }}
         />
       </Modal>
 
