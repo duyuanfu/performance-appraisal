@@ -85,13 +85,13 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void saveProjectBatch(ProjectBatchSaveDTO dto) {
-        // 校验唯一性：一年只能建立一个年度目标管理项目评审流程
+        // 校验唯一性：取消一年一个的限制，只要评审批次名称不同即可
         Long existingBatchCount = batchMapper.selectCount(new LambdaQueryWrapper<AppraisalBatch>()
                 .eq(AppraisalBatch::getBatchType, "ANNUAL_PROJECT")
-                .eq(AppraisalBatch::getAppraisalPeriod, dto.getAppraisalPeriod().trim())
+                .eq(AppraisalBatch::getBatchName, dto.getBatchName().trim())
                 .ne(dto.getId() != null, AppraisalBatch::getId, dto.getId()));
         if (existingBatchCount > 0) {
-            throw new BusinessException(400, "该年度【" + dto.getAppraisalPeriod().trim() + "】已存在项目评审批次，系统规定一年只能建立一个评审流程！");
+            throw new BusinessException(400, "评审批次名称【" + dto.getBatchName().trim() + "】已存在，请使用不同的批次名称！");
         }
 
         // 校验专家权重：保持与月度绩效一致，权重合计必须为 100%

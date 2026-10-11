@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Form, Input, Button, Typography, Space, Divider, Alert } from 'antd';
+import { Card, Form, Input, Button, Typography } from 'antd';
 import { UserOutlined, LockOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -24,11 +24,6 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const handleQuickLogin = (username: string) => {
-    form.setFieldsValue({ username, password: 'password123' });
-    form.submit();
-  };
-
   return (
     <div
       style={{
@@ -42,7 +37,7 @@ const LoginPage: React.FC = () => {
     >
       <Card
         style={{
-          width: 440,
+          width: 420,
           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
           borderRadius: 12,
         }}
@@ -63,7 +58,7 @@ const LoginPage: React.FC = () => {
           >
             <Input
               prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
-              placeholder="请输入用户名（如 admin）"
+              placeholder="请输入用户名"
               size="large"
             />
           </Form.Item>
@@ -75,12 +70,12 @@ const LoginPage: React.FC = () => {
           >
             <Input.Password
               prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
-              placeholder="请输入密码（默认 password123）"
+              placeholder="请输入密码"
               size="large"
             />
           </Form.Item>
 
-          <Form.Item style={{ marginTop: 24 }}>
+          <Form.Item style={{ marginTop: 24, marginBottom: 8 }}>
             <Button
               type="primary"
               htmlType="submit"
@@ -92,28 +87,6 @@ const LoginPage: React.FC = () => {
             </Button>
           </Form.Item>
         </Form>
-
-        <Divider style={{ margin: '16px 0' }}>快速演示登录</Divider>
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message="点击下方预设账号可快捷体验不同角色"
-        />
-        <Space wrap style={{ width: '100%', justifyContent: 'center' }}>
-          <Button size="small" onClick={() => handleQuickLogin('admin')}>
-            管理员 (admin)
-          </Button>
-          <Button size="small" onClick={() => handleQuickLogin('leader_zhang')}>
-            中心领导 (张主任)
-          </Button>
-          <Button size="small" onClick={() => handleQuickLogin('expert_wang')}>
-            评审专家 (王专家)
-          </Button>
-          <Button size="small" onClick={() => handleQuickLogin('dept_qian')}>
-            员工/专家 (钱部长)
-          </Button>
-        </Space>
       </Card>
     </div>
   );

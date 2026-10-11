@@ -220,10 +220,10 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
           ? values.appraisalPeriod.trim()
           : dayjs(values.appraisalPeriod).format('YYYY');
 
-      // 规则：一年只能建立一个年度目标管理项目评审流程 (忽略重新发起的当前批次)
-      const exists = batches.some((b) => b.id !== relaunchBatchId && b.appraisalPeriod === periodStr);
+      // 规则：只要评审批次名称不同即可（取消一年一个的限制）
+      const exists = batches.some((b) => b.id !== relaunchBatchId && b.batchName === values.batchName.trim());
       if (exists) {
-        message.error(`该年度【${periodStr}】已存在项目评审批次，系统规定一年只能建立一个评审流程！`);
+        message.error(`评审批次名称【${values.batchName.trim()}】已存在，请使用不同的批次名称！`);
         return;
       }
 
@@ -589,7 +589,7 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
             <Col span={8}>
               <Form.Item
                 name="appraisalPeriod"
-                label="评审年度（一年只能建一个流程）"
+                label="评审年度"
                 rules={[{ required: true, message: '请选择评审年度' }]}
               >
                 <DatePicker

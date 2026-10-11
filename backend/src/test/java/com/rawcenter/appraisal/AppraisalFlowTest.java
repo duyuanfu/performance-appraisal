@@ -304,13 +304,21 @@ public class AppraisalFlowTest {
         Assertions.assertFalse(batches.isEmpty());
         Long batchId = batches.get(0).getId();
 
-        // Test Year Uniqueness: trying to create a second batch for same year "2026" MUST fail
-        ProjectBatchSaveDTO dupDto = new ProjectBatchSaveDTO();
-        dupDto.setBatchName("2026年度重复批次");
-        dupDto.setAppraisalPeriod("2026");
-        dupDto.setExperts(Arrays.asList(e1, e2));
-        dupDto.setMetrics(metrics);
-        Assertions.assertThrows(BusinessException.class, () -> projectService.saveProjectBatch(dupDto));
+        // 验证批次名称唯一性：相同名称必须拦截抛出异常
+        ProjectBatchSaveDTO dupNameDto = new ProjectBatchSaveDTO();
+        dupNameDto.setBatchName("2026年度目标管理绩效项目评审测试"); // 重复名称
+        dupNameDto.setAppraisalPeriod("2026");
+        dupNameDto.setExperts(Arrays.asList(e1, e2));
+        dupNameDto.setMetrics(metrics);
+        Assertions.assertThrows(BusinessException.class, () -> projectService.saveProjectBatch(dupNameDto));
+
+        // 验证取消一年一个限制：名称不同、相同年度能够成功创建
+        ProjectBatchSaveDTO diffNameDto = new ProjectBatchSaveDTO();
+        diffNameDto.setBatchName("2026年度专项项目评审测试"); // 不同名称，相同年度
+        diffNameDto.setAppraisalPeriod("2026");
+        diffNameDto.setExperts(Arrays.asList(e1, e2));
+        diffNameDto.setMetrics(metrics);
+        Assertions.assertDoesNotThrow(() -> projectService.saveProjectBatch(diffNameDto));
 
         // 2. Add Candidate Projects
         ProjectItemSaveDTO p1 = new ProjectItemSaveDTO();

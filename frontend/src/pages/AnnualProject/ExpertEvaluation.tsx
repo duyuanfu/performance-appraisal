@@ -385,101 +385,105 @@ export const ExpertEvaluationPage: React.FC = () => {
         />
       )}
 
-      {/* Split-screen workbench: Left PDF viewer, Right interactive scoring table */}
-      <Row gutter={16}>
-        {/* Left pane: Online PDF material viewer */}
-        <Col span={10}>
-          <Card
-            title={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>材料查阅: {currentProject?.projectName || '请选择项目'}</span>
-                <Radio.Group
-                  size="small"
-                  value={pdfType}
-                  onChange={(e) => setPdfType(e.target.value)}
-                >
-                  <Radio.Button value="material">
-                    <FilePdfOutlined /> 申报材料
-                  </Radio.Button>
-                  <Radio.Button value="attachment">
-                    <FilePdfOutlined /> 附件
-                  </Radio.Button>
-                </Radio.Group>
-              </div>
-            }
-            bodyStyle={{ padding: 8, height: '620px' }}
-          >
-            {currentPdfUrl ? (
-              <iframe
-                src={currentPdfUrl}
-                title="PDF Document"
-                style={{ width: '100%', height: '100%', border: 'none', borderRadius: 4 }}
-              />
-            ) : (
-              <div
-                style={{
-                  height: '100%',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <Empty
-                  description={
-                    currentProject
-                      ? `该项目暂未上传${pdfType === 'material' ? '申报材料' : '附件'} PDF`
-                      : '请在右侧表格中选择项目进行查阅'
-                  }
-                />
-              </div>
-            )}
-          </Card>
-        </Col>
+      {/* 上下分布布局：上方【项目评审界面（专家）】占满整栏，下方【材料查阅】占满整栏 */}
+      {/* 1. 上方：项目评审打分表格（全宽占满整栏） */}
+      <Card
+        title="项目评审界面（专家）"
+        style={{ marginBottom: 16 }}
+        bodyStyle={{ padding: 16 }}
+      >
+        <Table
+          rowKey="projectId"
+          columns={dynamicColumns}
+          dataSource={evaluationData?.projects || []}
+          loading={loading}
+          pagination={false}
+          bordered
+          size="middle"
+          rowClassName={(record) =>
+            record.projectId === selectedProjectId ? 'ant-table-row-selected' : ''
+          }
+          onRow={(record) => ({
+            onClick: () => setSelectedProjectId(record.projectId),
+          })}
+        />
 
-        {/* Right pane: Interactive scoring grid matching prototype xlsx */}
-        <Col span={14}>
-          <Card title="项目评审界面（专家）" bodyStyle={{ padding: 12 }}>
-            <Table
-              rowKey="projectId"
-              columns={dynamicColumns}
-              dataSource={evaluationData?.projects || []}
-              loading={loading}
-              pagination={false}
-              bordered
-              size="middle"
-              rowClassName={(record) =>
-                record.projectId === selectedProjectId ? 'ant-table-row-selected' : ''
-              }
-              onRow={(record) => ({
-                onClick: () => setSelectedProjectId(record.projectId),
-              })}
-            />
+        <div
+          style={{
+            marginTop: 16,
+            padding: '12px 16px',
+            background: '#fafafa',
+            borderRadius: 6,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            border: '1px solid #f0f0f0',
+          }}
+        >
+          <Space size="large">
+            <Space>
+              <Text strong>评审日期：</Text>
+              <Text>{dayjs().format('YYYY-MM-DD')}</Text>
+            </Space>
+            <Space>
+              <Text strong>评审专家：</Text>
+              <Tag color="purple" style={{ fontSize: 13, padding: '2px 8px' }}>
+                {user?.realName}
+              </Tag>
+            </Space>
+          </Space>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            💡 提示：点击上方表格中的任意项目行，可在下方整栏区域直接查阅该项目的申报材料及附件 PDF
+          </Text>
+        </div>
+      </Card>
 
-            <div
-              style={{
-                marginTop: 16,
-                padding: '12px 16px',
-                background: '#fafafa',
-                borderRadius: 6,
-                display: 'flex',
-                justifyContent: 'space-between',
-                border: '1px solid #f0f0f0',
-              }}
+      {/* 2. 下方：材料查阅（全宽内嵌 PDF 阅读器） */}
+      <Card
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>材料查阅: {currentProject?.projectName || '请选择项目'}</span>
+            <Radio.Group
+              size="small"
+              value={pdfType}
+              onChange={(e) => setPdfType(e.target.value)}
             >
-              <Space>
-                <Text strong>评审日期：</Text>
-                <Text>{dayjs().format('YYYY-MM-DD')}</Text>
-              </Space>
-              <Space>
-                <Text strong>评审专家：</Text>
-                <Tag color="purple" style={{ fontSize: 13, padding: '2px 8px' }}>
-                  {user?.realName}
-                </Tag>
-              </Space>
-            </div>
-          </Card>
-        </Col>
-      </Row>
+              <Radio.Button value="material">
+                <FilePdfOutlined /> 申报材料
+              </Radio.Button>
+              <Radio.Button value="attachment">
+                <FilePdfOutlined /> 附件
+              </Radio.Button>
+            </Radio.Group>
+          </div>
+        }
+        bodyStyle={{ padding: 8, height: '720px' }}
+      >
+        {currentPdfUrl ? (
+          <iframe
+            src={currentPdfUrl}
+            title="PDF Document"
+            style={{ width: '100%', height: '100%', border: 'none', borderRadius: 4 }}
+          />
+        ) : (
+          <div
+            style={{
+              height: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <Empty
+              description={
+                currentProject
+                  ? `该项目暂未上传${pdfType === 'material' ? '申报材料' : '附件'} PDF`
+                  : '请在上方表格中选择项目进行查阅'
+              }
+            />
+          </div>
+        )}
+      </Card>
     </div>
   );
 };
