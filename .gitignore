@@ -40,3 +40,6 @@ backend/data/
 data/uploads/
 data/*.db
 data/*.trace.db
+
+# OpenCode Harness
+.opencode/
