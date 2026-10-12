@@ -41,5 +41,6 @@ data/uploads/
 data/*.db
 data/*.trace.db
 
-# OpenCode Harness
+# OpenCode & OpenSpec
 .opencode/
+openspec/
