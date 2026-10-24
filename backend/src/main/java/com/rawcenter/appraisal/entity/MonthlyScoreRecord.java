@@ -22,6 +22,7 @@ public class MonthlyScoreRecord {
     private Long batchId;
     private Long leaderUserId;
     private Long examineeUserId;
+    private String evaluatorRoleType;
     private BigDecimal totalScore;
     private String status; // DRAFT, SUBMITTED
     private LocalDateTime submittedAt;

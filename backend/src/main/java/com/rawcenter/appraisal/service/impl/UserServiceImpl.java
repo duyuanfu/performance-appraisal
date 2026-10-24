@@ -73,6 +73,8 @@ public class UserServiceImpl implements UserService {
                 .realName(user.getRealName())
                 .department(user.getDepartment())
                 .position(user.getPosition())
+                .title(user.getTitle())
+                .positionCategory(user.getPositionCategory())
                 .activeRole(defaultRole)
                 .roles(roleVOs)
                 .build();
@@ -80,11 +82,14 @@ public class UserServiceImpl implements UserService {
 
     private int getRolePriority(String roleCode) {
         return switch (roleCode) {
+            case "SYS_ADMIN" -> 0;
             case "ADMIN" -> 1;
             case "LEADER" -> 2;
-            case "EXPERT" -> 3;
-            case "EMPLOYEE" -> 4;
-            default -> 5;
+            case "DEPT_HEAD" -> 3;
+            case "DEPT_DEPUTY" -> 4;
+            case "EXPERT" -> 5;
+            case "EMPLOYEE" -> 6;
+            default -> 7;
         };
     }
 
@@ -142,6 +147,17 @@ public class UserServiceImpl implements UserService {
                 throw new BusinessException(400, "用户名已存在");
             }
 
+            String supervisorName = dto.getSupervisorName();
+            if (!StringUtils.hasText(supervisorName) && dto.getSupervisorId() != null) {
+                SysUser sup = userMapper.selectById(dto.getSupervisorId());
+                if (sup != null) supervisorName = sup.getRealName();
+            }
+            String deptHeadName = dto.getDeptHeadName();
+            if (!StringUtils.hasText(deptHeadName) && dto.getDeptHeadId() != null) {
+                SysUser dh = userMapper.selectById(dto.getDeptHeadId());
+                if (dh != null) deptHeadName = dh.getRealName();
+            }
+
             String password = StringUtils.hasText(dto.getPassword()) ? dto.getPassword() : "password123";
             SysUser user = SysUser.builder()
                     .username(dto.getUsername())
@@ -149,6 +165,12 @@ public class UserServiceImpl implements UserService {
                     .realName(dto.getRealName())
                     .department(dto.getDepartment())
                     .position(dto.getPosition() != null ? dto.getPosition() : "")
+                    .title(dto.getTitle() != null ? dto.getTitle() : "")
+                    .positionCategory(dto.getPositionCategory() != null ? dto.getPositionCategory() : "EMPLOYEE")
+                    .supervisorId(dto.getSupervisorId())
+                    .supervisorName(supervisorName != null ? supervisorName : "")
+                    .deptHeadId(dto.getDeptHeadId())
+                    .deptHeadName(deptHeadName != null ? deptHeadName : "")
                     .email(dto.getEmail() != null ? dto.getEmail() : "")
                     .phone(dto.getPhone() != null ? dto.getPhone() : "")
                     .status(dto.getStatus() != null ? dto.getStatus() : 1)
@@ -163,9 +185,30 @@ public class UserServiceImpl implements UserService {
                 throw new BusinessException(404, "用户不存在");
             }
 
+            String supervisorName = dto.getSupervisorName();
+            if (!StringUtils.hasText(supervisorName) && dto.getSupervisorId() != null) {
+                SysUser sup = userMapper.selectById(dto.getSupervisorId());
+                if (sup != null) supervisorName = sup.getRealName();
+            }
+            String deptHeadName = dto.getDeptHeadName();
+            if (!StringUtils.hasText(deptHeadName) && dto.getDeptHeadId() != null) {
+                SysUser dh = userMapper.selectById(dto.getDeptHeadId());
+                if (dh != null) deptHeadName = dh.getRealName();
+            }
+
             existing.setRealName(dto.getRealName());
             existing.setDepartment(dto.getDepartment());
             existing.setPosition(dto.getPosition() != null ? dto.getPosition() : "");
+            if (dto.getTitle() != null) {
+                existing.setTitle(dto.getTitle());
+            }
+            if (dto.getPositionCategory() != null) {
+                existing.setPositionCategory(dto.getPositionCategory());
+            }
+            existing.setSupervisorId(dto.getSupervisorId());
+            existing.setSupervisorName(supervisorName != null ? supervisorName : "");
+            existing.setDeptHeadId(dto.getDeptHeadId());
+            existing.setDeptHeadName(deptHeadName != null ? deptHeadName : "");
             existing.setEmail(dto.getEmail() != null ? dto.getEmail() : "");
             existing.setPhone(dto.getPhone() != null ? dto.getPhone() : "");
             if (dto.getStatus() != null) {
@@ -181,6 +224,20 @@ public class UserServiceImpl implements UserService {
                 updateUserRoles(existing.getId(), dto.getRoleIds());
             }
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteUser(Long id) {
+        SysUser user = userMapper.selectById(id);
+        if (user == null) {
+            throw new BusinessException(404, "用户不存在");
+        }
+        if ("sys_admin".equalsIgnoreCase(user.getUsername()) || "admin".equalsIgnoreCase(user.getUsername())) {
+            throw new BusinessException(400, "系统预置核心管理员账号不可删除");
+        }
+        userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, id));
+        userMapper.deleteById(id);
     }
 
     @Override
@@ -291,6 +348,12 @@ public class UserServiceImpl implements UserService {
                 .realName(user.getRealName())
                 .department(user.getDepartment())
                 .position(user.getPosition())
+                .title(user.getTitle())
+                .positionCategory(user.getPositionCategory())
+                .supervisorId(user.getSupervisorId())
+                .supervisorName(user.getSupervisorName())
+                .deptHeadId(user.getDeptHeadId())
+                .deptHeadName(user.getDeptHeadName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .status(user.getStatus())

@@ -42,6 +42,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
     private final ProjectScoreRecordMapper scoreRecordMapper;
     private final ProjectScoreDetailMapper scoreDetailMapper;
     private final SysUserMapper userMapper;
+    private final AppraisalMetricMapper metricMapper;
     private final MetricService metricService;
 
     @Value("${app.upload.dir:./data/uploads/projects}")
@@ -49,23 +50,36 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
 
     @Override
     public List<AppraisalBatch> listProjectBatches(String status, String keyword) {
+        return listProjectBatches(null, status, keyword);
+    }
+
+    @Override
+    public List<AppraisalBatch> listProjectBatches(String batchType, String status, String keyword) {
         Long currentUserId = UserContext.getUserId();
         String activeRole = UserContext.get() != null ? UserContext.get().getActiveRole() : null;
 
         LambdaQueryWrapper<AppraisalBatch> wrapper = new LambdaQueryWrapper<AppraisalBatch>()
-                .eq(AppraisalBatch::getBatchType, "ANNUAL_PROJECT")
                 .eq(StringUtils.hasText(status), AppraisalBatch::getStatus, status)
                 .like(StringUtils.hasText(keyword), AppraisalBatch::getBatchName, keyword);
 
-        // 数据权限隔离：评审专家角色仅可见分配给自己评审的批次，且未发布的草稿对专家完全不可见！
-        if ("EXPERT".equalsIgnoreCase(activeRole) && currentUserId != null) {
+        if (StringUtils.hasText(batchType)) {
+            if ("TARGET_PROJECT".equalsIgnoreCase(batchType)) {
+                wrapper.in(AppraisalBatch::getBatchType, Arrays.asList("TARGET_PROJECT", "ANNUAL_PROJECT"));
+            } else {
+                wrapper.eq(AppraisalBatch::getBatchType, batchType);
+            }
+        } else {
+            wrapper.in(AppraisalBatch::getBatchType, Arrays.asList("TARGET_PROJECT", "SPECIAL_INNOVATION", "ANNUAL_PROJECT"));
+        }
+
+        // 数据权限隔离：评审专家/领导角色仅可见分配给自己评审的批次，且未发布的草稿对专家完全不可见！
+        if (("EXPERT".equalsIgnoreCase(activeRole) || "LEADER".equalsIgnoreCase(activeRole)) && currentUserId != null) {
             List<ProjectExpert> myAssignments = projectExpertMapper.selectList(new LambdaQueryWrapper<ProjectExpert>()
                     .eq(ProjectExpert::getExpertUserId, currentUserId));
-            if (myAssignments.isEmpty()) {
-                return Collections.emptyList();
+            if (!myAssignments.isEmpty()) {
+                List<Long> allowedBatchIds = myAssignments.stream().map(ProjectExpert::getBatchId).collect(Collectors.toList());
+                wrapper.in(AppraisalBatch::getId, allowedBatchIds);
             }
-            List<Long> allowedBatchIds = myAssignments.stream().map(ProjectExpert::getBatchId).collect(Collectors.toList());
-            wrapper.in(AppraisalBatch::getId, allowedBatchIds);
             wrapper.ne(AppraisalBatch::getStatus, "DRAFT");
         }
 
@@ -87,7 +101,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
     public void saveProjectBatch(ProjectBatchSaveDTO dto) {
         // 校验唯一性：取消一年一个的限制，只要评审批次名称不同即可
         Long existingBatchCount = batchMapper.selectCount(new LambdaQueryWrapper<AppraisalBatch>()
-                .eq(AppraisalBatch::getBatchType, "ANNUAL_PROJECT")
+                .in(AppraisalBatch::getBatchType, Arrays.asList("TARGET_PROJECT", "SPECIAL_INNOVATION", "ANNUAL_PROJECT"))
                 .eq(AppraisalBatch::getBatchName, dto.getBatchName().trim())
                 .ne(dto.getId() != null, AppraisalBatch::getId, dto.getId()));
         if (existingBatchCount > 0) {
@@ -107,11 +121,14 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             throw new BusinessException(400, "评审专家权重合计必须为100%，当前为：" + totalExpertWeight.stripTrailingZeros().toPlainString() + "%");
         }
 
+        String batchType = StringUtils.hasText(dto.getBatchType()) ? dto.getBatchType() : "TARGET_PROJECT";
+
         AppraisalBatch batch;
         if (dto.getId() == null) {
             batch = AppraisalBatch.builder()
                     .batchName(dto.getBatchName())
-                    .batchType("ANNUAL_PROJECT")
+                    .batchType(batchType)
+                    .category(dto.getCategory() != null ? dto.getCategory() : "")
                     .appraisalPeriod(dto.getAppraisalPeriod())
                     .startTime(dto.getStartTime())
                     .endTime(dto.getEndTime())
@@ -127,6 +144,12 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 throw new BusinessException(404, "批次不存在");
             }
             batch.setBatchName(dto.getBatchName());
+            if (StringUtils.hasText(dto.getBatchType())) {
+                batch.setBatchType(dto.getBatchType());
+            }
+            if (dto.getCategory() != null) {
+                batch.setCategory(dto.getCategory());
+            }
             batch.setAppraisalPeriod(dto.getAppraisalPeriod());
             batch.setStartTime(dto.getStartTime() != null ? dto.getStartTime() : LocalDateTime.now());
             batch.setEndTime(dto.getEndTime());
@@ -203,6 +226,12 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .projectCode(item.getProjectCode())
                 .projectName(item.getProjectName())
                 .ownerName(item.getOwnerName())
+                .category(item.getCategory())
+                .department(item.getDepartment())
+                .awardTier(item.getAwardTier())
+                .scoreCoefficient(item.getScoreCoefficient())
+                .bonusAmount(item.getBonusAmount())
+                .rankNum(item.getRankNum())
                 .materialPdfName(item.getMaterialPdfName())
                 .hasMaterial(StringUtils.hasText(item.getMaterialPdfPath()))
                 .attachmentPdfName(item.getAttachmentPdfName())
@@ -213,13 +242,66 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
     }
 
     @Override
+    public void deleteProjectBatch(Long batchId) {
+        AppraisalBatch batch = batchMapper.selectById(batchId);
+        if (batch == null) {
+            throw new BusinessException(404, "批次不存在");
+        }
+        List<ProjectScoreRecord> records = scoreRecordMapper.selectList(new LambdaQueryWrapper<ProjectScoreRecord>()
+                .eq(ProjectScoreRecord::getBatchId, batchId));
+        if (!records.isEmpty()) {
+            List<Long> recordIds = records.stream().map(ProjectScoreRecord::getId).collect(Collectors.toList());
+            scoreDetailMapper.delete(new LambdaQueryWrapper<ProjectScoreDetail>().in(ProjectScoreDetail::getRecordId, recordIds));
+            scoreRecordMapper.delete(new LambdaQueryWrapper<ProjectScoreRecord>().eq(ProjectScoreRecord::getBatchId, batchId));
+        }
+        projectExpertMapper.delete(new LambdaQueryWrapper<ProjectExpert>().eq(ProjectExpert::getBatchId, batchId));
+        projectItemMapper.delete(new LambdaQueryWrapper<ProjectItem>().eq(ProjectItem::getBatchId, batchId));
+        metricMapper.delete(new LambdaQueryWrapper<AppraisalMetric>().eq(AppraisalMetric::getBatchId, batchId));
+        batchMapper.deleteById(batchId);
+    }
+
+    @Override
     public void saveProjectItem(ProjectItemSaveDTO dto) {
+        AppraisalBatch batch = batchMapper.selectById(dto.getBatchId());
+        if (dto.getId() == null && batch != null && StringUtils.hasText(dto.getDepartment())) {
+            String dept = dto.getDepartment().trim();
+            if ("SPECIAL_INNOVATION".equalsIgnoreCase(batch.getBatchType())) {
+                String cat = dto.getCategory() != null ? dto.getCategory().trim().toUpperCase() : "BUSINESS";
+                if ("MANAGEMENT".equalsIgnoreCase(cat)) {
+                    Long count = projectItemMapper.selectCount(new LambdaQueryWrapper<ProjectItem>()
+                            .eq(ProjectItem::getBatchId, dto.getBatchId())
+                            .eq(ProjectItem::getDepartment, dept)
+                            .eq(ProjectItem::getCategory, "MANAGEMENT"));
+                    if (count >= 2) {
+                        throw new BusinessException(400, "部门【" + dept + "】申报管理类专项与创新任务已达到上限（最多2项）");
+                    }
+                } else {
+                    Long count = projectItemMapper.selectCount(new LambdaQueryWrapper<ProjectItem>()
+                            .eq(ProjectItem::getBatchId, dto.getBatchId())
+                            .eq(ProjectItem::getDepartment, dept)
+                            .ne(ProjectItem::getCategory, "MANAGEMENT"));
+                    if (count >= 3) {
+                        throw new BusinessException(400, "部门【" + dept + "】申报业务类专项与创新任务已达到上限（最多3项）");
+                    }
+                }
+            } else if ("TARGET_PROJECT".equalsIgnoreCase(batch.getBatchType())) {
+                Long count = projectItemMapper.selectCount(new LambdaQueryWrapper<ProjectItem>()
+                        .eq(ProjectItem::getBatchId, dto.getBatchId())
+                        .eq(ProjectItem::getDepartment, dept));
+                if (count >= 1) {
+                    throw new BusinessException(400, "部门【" + dept + "】申报目标绩效任务已达到上限（每部门仅限申报1项）");
+                }
+            }
+        }
+
         if (dto.getId() == null) {
             ProjectItem item = ProjectItem.builder()
                     .batchId(dto.getBatchId())
                     .projectCode(dto.getProjectCode())
                     .projectName(dto.getProjectName())
                     .ownerName(dto.getOwnerName())
+                    .category(dto.getCategory() != null ? dto.getCategory() : "")
+                    .department(dto.getDepartment() != null ? dto.getDepartment() : "")
                     .sortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 1)
                     .materialPdfName("")
                     .materialPdfPath("")
@@ -236,6 +318,12 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             item.setProjectCode(dto.getProjectCode());
             item.setProjectName(dto.getProjectName());
             item.setOwnerName(dto.getOwnerName());
+            if (dto.getCategory() != null) {
+                item.setCategory(dto.getCategory());
+            }
+            if (dto.getDepartment() != null) {
+                item.setDepartment(dto.getDepartment());
+            }
             if (dto.getSortOrder() != null) {
                 item.setSortOrder(dto.getSortOrder());
             }
@@ -332,8 +420,17 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         ProjectExpert expert = projectExpertMapper.selectOne(new LambdaQueryWrapper<ProjectExpert>()
                 .eq(ProjectExpert::getBatchId, batchId)
                 .eq(ProjectExpert::getExpertUserId, expertUserId));
+        SysUser currentEvaluator = userMapper.selectById(expertUserId);
+        String evaluatorPos = currentEvaluator != null && currentEvaluator.getPositionCategory() != null ? currentEvaluator.getPositionCategory() : "";
+
         if (expert == null) {
-            throw new BusinessException(403, "您不是该批次的评审专家");
+            boolean isAllowed = "PRIMARY_LEADER".equalsIgnoreCase(evaluatorPos)
+                    || "CENTER_LEADER".equalsIgnoreCase(evaluatorPos)
+                    || "DEPT_HEAD".equalsIgnoreCase(evaluatorPos)
+                    || "EXPERT".equalsIgnoreCase(evaluatorPos);
+            if (!isAllowed) {
+                throw new BusinessException(403, "您不是该批次的评审人员");
+            }
         }
 
         List<AppraisalMetric> metrics = metricService.listMetricsByBatchId(batchId);
@@ -465,11 +562,16 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .eq(ProjectScoreRecord::getExpertUserId, expertUserId)
                     .eq(ProjectScoreRecord::getProjectId, item.getProjectId()));
 
+            SysUser currentEvaluator = userMapper.selectById(expertUserId);
+            String evRoleType = currentEvaluator != null && currentEvaluator.getPositionCategory() != null
+                    ? currentEvaluator.getPositionCategory() : "EXPERT";
+
             if (record == null) {
                 record = ProjectScoreRecord.builder()
                         .batchId(dto.getBatchId())
                         .expertUserId(expertUserId)
                         .projectId(item.getProjectId())
+                        .evaluatorRoleType(evRoleType)
                         .totalScore(totalScore)
                         .status(isSubmit ? "SUBMITTED" : "DRAFT")
                         .submittedAt(isSubmit ? LocalDateTime.now() : null)
@@ -477,6 +579,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 scoreRecordMapper.insert(record);
             } else {
                 record.setTotalScore(totalScore);
+                record.setEvaluatorRoleType(evRoleType);
                 record.setStatus(isSubmit ? "SUBMITTED" : "DRAFT");
                 record.setSubmittedAt(isSubmit ? LocalDateTime.now() : null);
                 scoreRecordMapper.updateById(record);
@@ -660,14 +763,88 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     score = rec.getTotalScore();
                 }
                 expertScoreMap.put(exp.getExpertUserId(), score);
-
-                // Add to weighted total: score * weight
                 weightedTotal = weightedTotal.add(score.multiply(exp.getWeight()));
             }
 
-            // Weighted average composite score = weightedTotal / totalExpertWeight
+            // Category score collection for multi-tier formulas
+            BigDecimal primaryScore = BigDecimal.ZERO;
+            BigDecimal supervisorScore = BigDecimal.ZERO;
+            List<BigDecimal> otherLeaderScores = new ArrayList<>();
+            List<BigDecimal> headScores = new ArrayList<>();
+            List<BigDecimal> expertScoresList = new ArrayList<>();
+
+            Long supervisorId = null;
+            if (StringUtils.hasText(p.getDepartment())) {
+                List<SysUser> deptHeads = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                        .eq(SysUser::getDepartment, p.getDepartment())
+                        .eq(SysUser::getPositionCategory, "DEPT_HEAD"));
+                if (!deptHeads.isEmpty()) {
+                    supervisorId = deptHeads.get(0).getSupervisorId();
+                }
+            }
+
+            for (ProjectScoreRecord rec : allRecords) {
+                if (!rec.getProjectId().equals(p.getId())) continue;
+                if (!"SUBMITTED".equals(rec.getStatus())) continue;
+
+                SysUser evUser = userMapper.selectById(rec.getExpertUserId());
+                if (evUser == null) continue;
+                String pos = evUser.getPositionCategory();
+
+                if ("PRIMARY_LEADER".equalsIgnoreCase(pos)) {
+                    primaryScore = rec.getTotalScore();
+                } else if ("CENTER_LEADER".equalsIgnoreCase(pos)) {
+                    if (supervisorId != null && supervisorId.equals(rec.getExpertUserId())) {
+                        supervisorScore = rec.getTotalScore();
+                    } else {
+                        otherLeaderScores.add(rec.getTotalScore());
+                    }
+                } else if ("DEPT_HEAD".equalsIgnoreCase(pos)) {
+                    headScores.add(rec.getTotalScore());
+                } else if ("EXPERT".equalsIgnoreCase(pos)) {
+                    expertScoresList.add(rec.getTotalScore());
+                }
+            }
+
+            BigDecimal otherLeaderAvg = otherLeaderScores.isEmpty() ? BigDecimal.ZERO
+                    : otherLeaderScores.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(new BigDecimal(otherLeaderScores.size()), 4, RoundingMode.HALF_UP);
+
+            BigDecimal headAvg = headScores.isEmpty() ? BigDecimal.ZERO
+                    : headScores.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(new BigDecimal(headScores.size()), 4, RoundingMode.HALF_UP);
+
+            BigDecimal expertAvg = expertScoresList.isEmpty() ? BigDecimal.ZERO
+                    : expertScoresList.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(new BigDecimal(expertScoresList.size()), 4, RoundingMode.HALF_UP);
+
+            // Compute composite score
             BigDecimal compositeScore = BigDecimal.ZERO;
-            if (totalExpertWeight.compareTo(BigDecimal.ZERO) > 0) {
+            boolean hasTierEvaluators = primaryScore.compareTo(BigDecimal.ZERO) > 0
+                    || supervisorScore.compareTo(BigDecimal.ZERO) > 0
+                    || !otherLeaderScores.isEmpty()
+                    || !headScores.isEmpty();
+
+            if ("SPECIAL_INNOVATION".equalsIgnoreCase(batch.getBatchType()) && hasTierEvaluators) {
+                // (中心主要领导评分×40% + 其他中心领导评分×60%)×50% + 正职评分×40% + 代表评分×10%
+                BigDecimal centerPart = primaryScore.multiply(new BigDecimal("0.40"))
+                        .add(otherLeaderAvg.multiply(new BigDecimal("0.60")))
+                        .multiply(new BigDecimal("0.50"));
+                compositeScore = centerPart
+                        .add(headAvg.multiply(new BigDecimal("0.40")))
+                        .add(expertAvg.multiply(new BigDecimal("0.10")))
+                        .setScale(4, RoundingMode.HALF_UP);
+            } else if ("TARGET_PROJECT".equalsIgnoreCase(batch.getBatchType()) && hasTierEvaluators) {
+                // (中心主要领导评分×20% + 分管领导评分×30% + 其他中心领导评分×50%)×50% + 正职评分×40% + 代表评分×10%
+                BigDecimal centerPart = primaryScore.multiply(new BigDecimal("0.20"))
+                        .add(supervisorScore.multiply(new BigDecimal("0.30")))
+                        .add(otherLeaderAvg.multiply(new BigDecimal("0.50")))
+                        .multiply(new BigDecimal("0.50"));
+                compositeScore = centerPart
+                        .add(headAvg.multiply(new BigDecimal("0.40")))
+                        .add(expertAvg.multiply(new BigDecimal("0.10")))
+                        .setScale(4, RoundingMode.HALF_UP);
+            } else if (totalExpertWeight.compareTo(BigDecimal.ZERO) > 0) {
                 compositeScore = weightedTotal.divide(totalExpertWeight, 4, RoundingMode.HALF_UP);
             }
 
@@ -699,6 +876,13 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .projectCode(p.getProjectCode())
                     .projectName(p.getProjectName())
                     .ownerName(p.getOwnerName())
+                    .category(p.getCategory())
+                    .department(p.getDepartment())
+                    .primaryLeaderScore(primaryScore)
+                    .supervisorLeaderScore(supervisorScore)
+                    .otherLeaderScore(otherLeaderAvg)
+                    .headScore(headAvg)
+                    .expertScore(expertAvg)
                     .metricAvgScores(metricAvgScores)
                     .expertScores(expertScoreMap)
                     .compositeScore(compositeScore)
@@ -712,15 +896,87 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             summaryRows.get(i).setRank(i + 1);
         }
 
+        // Calculate average score across all projects
+        BigDecimal sumComposite = summaryRows.stream().map(AnnualProjectSummaryVO.ProjectSummaryRowVO::getCompositeScore)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal averageScore = summaryRows.isEmpty() ? BigDecimal.ZERO
+                : sumComposite.divide(new BigDecimal(summaryRows.size()), 4, RoundingMode.HALF_UP);
+
+        // Calculate score coefficient and bonus amount
+        for (AnnualProjectSummaryVO.ProjectSummaryRowVO r : summaryRows) {
+            BigDecimal coef = averageScore.compareTo(BigDecimal.ZERO) > 0
+                    ? r.getCompositeScore().divide(averageScore, 4, RoundingMode.HALF_UP)
+                    : BigDecimal.ONE;
+            r.setScoreCoefficient(coef);
+            BigDecimal baseAmount = new BigDecimal("320.0000").divide(new BigDecimal(Math.max(1, summaryRows.size())), 4, RoundingMode.HALF_UP);
+            r.setBonusAmount(baseAmount.multiply(coef).setScale(4, RoundingMode.HALF_UP));
+        }
+
+        // Award tier assignment for SPECIAL_INNOVATION
+        if ("SPECIAL_INNOVATION".equalsIgnoreCase(batch.getBatchType())) {
+            assignAwardTiers(summaryRows.stream().filter(r -> !"MANAGEMENT".equalsIgnoreCase(r.getCategory())).collect(Collectors.toList()));
+            assignAwardTiers(summaryRows.stream().filter(r -> "MANAGEMENT".equalsIgnoreCase(r.getCategory())).collect(Collectors.toList()));
+        }
+
         return AnnualProjectSummaryVO.builder()
                 .batchId(batchId)
                 .batchName(batch.getBatchName())
+                .batchType(batch.getBatchType())
                 .appraisalPeriod(batch.getAppraisalPeriod())
                 .status(batch.getStatus())
+                .averageScore(averageScore)
                 .metrics(metrics)
                 .experts(expertHeaders)
                 .rows(summaryRows)
                 .build();
+    }
+
+    private void assignAwardTiers(List<AnnualProjectSummaryVO.ProjectSummaryRowVO> list) {
+        if (list.isEmpty()) return;
+        list.sort((a, b) -> b.getCompositeScore().compareTo(a.getCompositeScore()));
+        int n = list.size();
+        int maxSpecial = Math.max(1, (int) Math.floor(n * 0.05));
+        int maxFirst = Math.max(1, (int) Math.floor(n * 0.10));
+        int maxSecond = Math.max(1, (int) Math.floor(n * 0.20));
+        int maxThird = Math.max(1, (int) Math.floor(n * 0.30));
+
+        int specialCount = 0;
+        int firstCount = 0;
+        int secondCount = 0;
+        int thirdCount = 0;
+
+        for (AnnualProjectSummaryVO.ProjectSummaryRowVO r : list) {
+            BigDecimal score = r.getCompositeScore();
+            if (score.compareTo(new BigDecimal("95.0000")) >= 0 && specialCount < maxSpecial) {
+                r.setAwardTier("SPECIAL");
+                r.setAwardTierName("特等奖");
+                specialCount++;
+            } else if (score.compareTo(new BigDecimal("90.0000")) >= 0 && firstCount < maxFirst) {
+                r.setAwardTier("FIRST");
+                r.setAwardTierName("一等奖");
+                firstCount++;
+            } else if (score.compareTo(new BigDecimal("80.0000")) >= 0 && secondCount < maxSecond) {
+                r.setAwardTier("SECOND");
+                r.setAwardTierName("二等奖");
+                secondCount++;
+            } else if (score.compareTo(new BigDecimal("70.0000")) >= 0 && thirdCount < maxThird) {
+                r.setAwardTier("THIRD");
+                r.setAwardTierName("三等奖");
+                thirdCount++;
+            } else {
+                r.setAwardTier("NONE");
+                r.setAwardTierName("未获奖");
+            }
+
+            ProjectItem pi = projectItemMapper.selectById(r.getProjectId());
+            if (pi != null) {
+                pi.setAwardTier(r.getAwardTier());
+                pi.setRankNum(r.getRank());
+                pi.setScoreCoefficient(r.getScoreCoefficient());
+                pi.setBonusAmount(r.getBonusAmount());
+                projectItemMapper.updateById(pi);
+            }
+        }
     }
 
     @Override
@@ -729,48 +985,110 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             List<List<String>> head = new ArrayList<>();
-            head.add(List.of("项目序号"));
-            head.add(List.of("项目名称"));
-            head.add(List.of("项目负责人"));
-
-            // Metrics columns
-            for (AppraisalMetric m : summary.getMetrics()) {
-                head.add(List.of(m.getMetricName() + " (" + m.getMaxScore().stripTrailingZeros().toPlainString() + "分)"));
-            }
-
-            // Experts columns
-            for (AnnualProjectSummaryVO.ExpertHeaderVO e : summary.getExperts()) {
-                head.add(List.of(e.getRealName() + " (" + e.getWeight().stripTrailingZeros().toPlainString() + "%)"));
-            }
-
-            head.add(List.of("总分 (加权平均)"));
-            head.add(List.of("排名"));
-
             List<List<Object>> dataList = new ArrayList<>();
-            for (AnnualProjectSummaryVO.ProjectSummaryRowVO r : summary.getRows()) {
-                List<Object> row = new ArrayList<>();
-                row.add(r.getProjectCode());
-                row.add(r.getProjectName());
-                row.add(r.getOwnerName());
+
+            if ("TARGET_PROJECT".equalsIgnoreCase(summary.getBatchType())) {
+                // 目标绩效评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 分管领导评分, 其它中心领导评分, 正职评分, 代表评分, 综合得分, 得分系数, 排序
+                head.add(List.of("序号"));
+                head.add(List.of("项目名称"));
+                head.add(List.of("部门"));
+                head.add(List.of("中心主要领导评分"));
+                head.add(List.of("分管领导评分"));
+                head.add(List.of("其它中心领导评分"));
+                head.add(List.of("正职评分"));
+                head.add(List.of("代表评分"));
+                head.add(List.of("综合得分"));
+                head.add(List.of("得分系数"));
+                head.add(List.of("排序"));
+
+                int idx = 1;
+                for (AnnualProjectSummaryVO.ProjectSummaryRowVO r : summary.getRows()) {
+                    List<Object> row = new ArrayList<>();
+                    row.add(idx++);
+                    row.add(r.getProjectName());
+                    row.add(r.getDepartment() != null ? r.getDepartment() : "");
+                    row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(r.getScoreCoefficient() != null ? r.getScoreCoefficient().setScale(4, RoundingMode.HALF_UP).toString() : "1.0000");
+                    row.add(r.getRank());
+                    dataList.add(row);
+                }
+            } else if ("SPECIAL_INNOVATION".equalsIgnoreCase(summary.getBatchType())) {
+                // 专项与创新任务评审得分表: 序号, 项目名称, 部门, 类别, 中心主要领导评分, 其它中心领导评分, 正职评分, 代表评分, 综合得分, 获奖等次, 排序
+                head.add(List.of("序号"));
+                head.add(List.of("项目名称"));
+                head.add(List.of("部门"));
+                head.add(List.of("类别"));
+                head.add(List.of("中心主要领导评分"));
+                head.add(List.of("其它中心领导评分"));
+                head.add(List.of("正职评分"));
+                head.add(List.of("代表评分"));
+                head.add(List.of("综合得分"));
+                head.add(List.of("获奖等次"));
+                head.add(List.of("排序"));
+
+                int idx = 1;
+                for (AnnualProjectSummaryVO.ProjectSummaryRowVO r : summary.getRows()) {
+                    List<Object> row = new ArrayList<>();
+                    row.add(idx++);
+                    row.add(r.getProjectName());
+                    row.add(r.getDepartment() != null ? r.getDepartment() : "");
+                    row.add("MANAGEMENT".equalsIgnoreCase(r.getCategory()) ? "管理类" : "业务类");
+                    row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(r.getAwardTierName() != null ? r.getAwardTierName() : "未获奖");
+                    row.add(r.getRank());
+                    dataList.add(row);
+                }
+            } else {
+                // Legacy ANNUAL_PROJECT
+                head.add(List.of("项目序号"));
+                head.add(List.of("项目名称"));
+                head.add(List.of("项目负责人"));
 
                 for (AppraisalMetric m : summary.getMetrics()) {
-                    BigDecimal avg = r.getMetricAvgScores().get(m.getId());
-                    row.add(avg != null ? avg.setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    head.add(List.of(m.getMetricName() + " (" + m.getMaxScore().stripTrailingZeros().toPlainString() + "分)"));
                 }
 
                 for (AnnualProjectSummaryVO.ExpertHeaderVO e : summary.getExperts()) {
-                    BigDecimal score = r.getExpertScores().get(e.getExpertUserId());
-                    row.add(score != null ? score.setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    head.add(List.of(e.getRealName() + " (" + e.getWeight().stripTrailingZeros().toPlainString() + "%)"));
                 }
 
-                row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
-                row.add(r.getRank());
-                dataList.add(row);
+                head.add(List.of("总分 (加权平均)"));
+                head.add(List.of("排名"));
+
+                for (AnnualProjectSummaryVO.ProjectSummaryRowVO r : summary.getRows()) {
+                    List<Object> row = new ArrayList<>();
+                    row.add(r.getProjectCode());
+                    row.add(r.getProjectName());
+                    row.add(r.getOwnerName());
+
+                    for (AppraisalMetric m : summary.getMetrics()) {
+                        BigDecimal avg = r.getMetricAvgScores().get(m.getId());
+                        row.add(avg != null ? avg.setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    }
+
+                    for (AnnualProjectSummaryVO.ExpertHeaderVO e : summary.getExperts()) {
+                        BigDecimal score = r.getExpertScores().get(e.getExpertUserId());
+                        row.add(score != null ? score.setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    }
+
+                    row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(r.getRank());
+                    dataList.add(row);
+                }
             }
 
             EasyExcel.write(out)
                     .excelType(ExcelTypeEnum.XLSX)
-                    .sheet("年度目标管理项目评审")
+                    .sheet(summary.getBatchName())
                     .head(head)
                     .doWrite(dataList);
 

@@ -18,6 +18,12 @@ public class ProjectItemVO {
     private String projectCode;
     private String projectName;
     private String ownerName;
+    private String category;
+    private String department;
+    private String awardTier;
+    private java.math.BigDecimal scoreCoefficient;
+    private java.math.BigDecimal bonusAmount;
+    private Integer rankNum;
     private String materialPdfName;
     private Boolean hasMaterial;
     private String attachmentPdfName;

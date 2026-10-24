@@ -18,6 +18,8 @@ public class LoginResponse {
     private String realName;
     private String department;
     private String position;
+    private String title;
+    private String positionCategory;
     private String activeRole; // default active role on login
     private List<RoleVO> roles;
 }

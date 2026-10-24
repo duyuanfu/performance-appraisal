@@ -22,6 +22,27 @@ public class MonthlySummaryVO {
     private List<AppraisalMetric> metrics; // 指标项列表
     private List<LeaderHeaderVO> leaders;
     private List<SummaryRowVO> rows;
+    private List<TierSummaryRowVO> headRows; // 部门正职考评汇总列表
+    private List<TierSummaryRowVO> deputyRows; // 部门副职考评汇总列表
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TierSummaryRowVO {
+        private Long examineeUserId;
+        private String realName;
+        private String department;
+        private String position;
+        private String positionCategory; // DEPT_HEAD, DEPT_DEPUTY
+        private BigDecimal primaryLeaderScore; // 主要领导得分
+        private BigDecimal supervisorLeaderScore; // 分管领导得分
+        private BigDecimal otherLeaderScore; // 其他中心领导均分
+        private BigDecimal deptHeadScore; // 直属部门正职领导得分 (副职专属)
+        private BigDecimal peerScore; // 同级互评均分
+        private BigDecimal compositeScore; // 综合得分
+        private Integer rank; // 排名
+    }
 
     @Data
     @Builder

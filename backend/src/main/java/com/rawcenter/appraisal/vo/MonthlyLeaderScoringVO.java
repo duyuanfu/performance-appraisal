@@ -38,6 +38,8 @@ public class MonthlyLeaderScoringVO {
         private String realName;
         private String department;
         private String position;
+        private String positionCategory; // DEPT_HEAD, DEPT_DEPUTY
+        private String evaluatorRelationship; // 中心主要领导, 分管领导, 其他中心领导, 本部门正职, 部门正职互评, 部门副职互评
         private Map<Long, BigDecimal> metricScores; // metricId -> score
         private BigDecimal totalScore;
     }

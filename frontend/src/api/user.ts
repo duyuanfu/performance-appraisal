@@ -8,6 +8,12 @@ export interface UserSaveDTO {
   realName: string;
   department: string;
   position?: string;
+  title?: string;
+  positionCategory?: string;
+  supervisorId?: number;
+  supervisorName?: string;
+  deptHeadId?: number;
+  deptHeadName?: string;
   email?: string;
   phone?: string;
   status?: number;
@@ -36,4 +42,8 @@ export function updateUserStatusApi(id: number, status: number): Promise<void> {
 
 export function resetPasswordByAdminApi(id: number): Promise<void> {
   return request.post(`/users/${id}/reset-password`);
+}
+
+export function deleteUserApi(id: number): Promise<void> {
+  return request.delete(`/users/${id}`);
 }

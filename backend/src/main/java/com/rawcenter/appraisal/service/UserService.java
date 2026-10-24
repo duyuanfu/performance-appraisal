@@ -18,6 +18,7 @@ public interface UserService {
     UserVO getUserById(Long id);
     void saveUser(UserSaveDTO dto);
     void updateUserStatus(Long id, Integer status);
+    void deleteUser(Long id);
     List<RoleVO> listAllRoles();
     List<SysUser> listUsersByRoleCode(String roleCode);
     void changePassword(ChangePasswordDTO dto);

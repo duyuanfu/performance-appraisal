@@ -14,6 +14,8 @@ import java.util.List;
 public class DefaultMetricsProperties {
 
     private List<MetricConfigItem> monthly = new ArrayList<>();
+    private List<MetricConfigItem> targetProject = new ArrayList<>();
+    private List<MetricConfigItem> specialInnovation = new ArrayList<>();
     private List<MetricConfigItem> annualProject = new ArrayList<>();
 
     @Data

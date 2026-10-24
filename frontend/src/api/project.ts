@@ -9,6 +9,8 @@ export interface ExpertWeightItem {
 export interface ProjectBatchSaveDTO {
   id?: number;
   batchName: string;
+  batchType?: string; // TARGET_PROJECT, SPECIAL_INNOVATION, ANNUAL_PROJECT
+  category?: string; // BUSINESS, MANAGEMENT, ALL
   appraisalPeriod: string;
   startTime?: string;
   endTime?: string;
@@ -20,6 +22,7 @@ export interface ProjectBatchVO {
   id: number;
   batchName: string;
   batchType: string;
+  category?: string;
   appraisalPeriod: string;
   startTime?: string;
   endTime?: string;
@@ -33,6 +36,12 @@ export interface ProjectItemVO {
   projectCode: string;
   projectName: string;
   ownerName: string;
+  category?: string;
+  department?: string;
+  awardTier?: string;
+  scoreCoefficient?: number;
+  bonusAmount?: number;
+  rankNum?: number;
   materialPdfName?: string;
   hasMaterial: boolean;
   attachmentPdfName?: string;
@@ -47,6 +56,8 @@ export interface ProjectItemSaveDTO {
   projectCode: string;
   projectName: string;
   ownerName: string;
+  category?: string;
+  department?: string;
   sortOrder?: number;
 }
 
@@ -76,8 +87,10 @@ export interface ExpertEvaluationVO {
 export interface AnnualProjectSummaryVO {
   batchId: number;
   batchName: string;
+  batchType?: string;
   appraisalPeriod: string;
   status: string;
+  averageScore?: number;
   metrics: MetricItem[];
   experts: {
     expertUserId: number;
@@ -90,6 +103,17 @@ export interface AnnualProjectSummaryVO {
     projectCode: string;
     projectName: string;
     ownerName: string;
+    category?: string;
+    department?: string;
+    primaryLeaderScore?: number;
+    supervisorLeaderScore?: number;
+    otherLeaderScore?: number;
+    headScore?: number;
+    expertScore?: number;
+    scoreCoefficient?: number;
+    bonusAmount?: number;
+    awardTier?: string;
+    awardTierName?: string;
     metricAvgScores: Record<number, number>;
     expertScores: Record<number, number>;
     compositeScore: number;
@@ -97,8 +121,12 @@ export interface AnnualProjectSummaryVO {
   }[];
 }
 
-export function listProjectBatchesApi(params?: { status?: string; keyword?: string }): Promise<ProjectBatchVO[]> {
+export function listProjectBatchesApi(params?: { batchType?: string; status?: string; keyword?: string }): Promise<ProjectBatchVO[]> {
   return request.get('/projects/batches', { params });
+}
+
+export function deleteProjectBatchApi(id: number): Promise<void> {
+  return request.delete(`/projects/batches/${id}`);
 }
 
 export function getExpertProgressApi(batchId: number): Promise<import('./monthly').EvaluatorProgressVO[]> {

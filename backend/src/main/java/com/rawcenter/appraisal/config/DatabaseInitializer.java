@@ -1,0 +1,91 @@
+package com.rawcenter.appraisal.config;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * 数据库启动初始化与增量列迁移器
+ * 在服务启动时自动检查各表结构，自动平滑补充 V2 升级所需新增字段，确保无需手动执行 ALTER TABLE。
+ */
+@Slf4j
+@Component
+@Order(1)
+public class DatabaseInitializer implements CommandLineRunner {
+
+    @Autowired
+    private DataSource dataSource;
+
+    @Override
+    public void run(String... args) {
+        log.info("[DatabaseInitializer] 开始检查并自动平滑升级数据库表结构...");
+        try (Connection conn = dataSource.getConnection(); Statement stmt = conn.createStatement()) {
+            DatabaseMetaData metaData = conn.getMetaData();
+
+            // 1. 检查并补充 sys_user 表字段
+            ensureColumn(metaData, stmt, "sys_user", "title", "VARCHAR(64) DEFAULT '' COMMENT '职务名称'");
+            ensureColumn(metaData, stmt, "sys_user", "position_category", "VARCHAR(64) DEFAULT 'EMPLOYEE' COMMENT '岗位类别'");
+            ensureColumn(metaData, stmt, "sys_user", "supervisor_id", "BIGINT NULL COMMENT '分管领导用户ID'");
+            ensureColumn(metaData, stmt, "sys_user", "supervisor_name", "VARCHAR(64) DEFAULT '' COMMENT '分管领导姓名'");
+            ensureColumn(metaData, stmt, "sys_user", "dept_head_id", "BIGINT NULL COMMENT '直属部门正职领导ID'");
+            ensureColumn(metaData, stmt, "sys_user", "dept_head_name", "VARCHAR(64) DEFAULT '' COMMENT '直属部门正职姓名'");
+
+            // 2. 检查并补充 appraisal_batch 表字段
+            ensureColumn(metaData, stmt, "appraisal_batch", "category", "VARCHAR(32) DEFAULT '' COMMENT '评审类别: BUSINESS, MANAGEMENT, ALL'");
+
+            // 3. 检查并补充 project_item 表字段
+            ensureColumn(metaData, stmt, "project_item", "category", "VARCHAR(32) DEFAULT '' COMMENT '申报类别: BUSINESS, MANAGEMENT'");
+            ensureColumn(metaData, stmt, "project_item", "department", "VARCHAR(64) DEFAULT '' COMMENT '申报部门'");
+            ensureColumn(metaData, stmt, "project_item", "award_tier", "VARCHAR(32) DEFAULT '' COMMENT '评定奖项等次'");
+            ensureColumn(metaData, stmt, "project_item", "score_coefficient", "DECIMAL(10,4) DEFAULT NULL COMMENT '得分系数'");
+            ensureColumn(metaData, stmt, "project_item", "bonus_amount", "DECIMAL(12,4) DEFAULT NULL COMMENT '核定奖励金额'");
+            ensureColumn(metaData, stmt, "project_item", "rank_num", "INT DEFAULT NULL COMMENT '排序序号'");
+
+            // 4. 检查并补充 monthly_score_record 表字段
+            ensureColumn(metaData, stmt, "monthly_score_record", "evaluator_role_type", "VARCHAR(32) DEFAULT '' COMMENT '评价人角色'");
+
+            // 5. 检查并补充 project_score_record 表字段
+            ensureColumn(metaData, stmt, "project_score_record", "evaluator_role_type", "VARCHAR(32) DEFAULT '' COMMENT '打分角色分类'");
+
+            log.info("[DatabaseInitializer] 数据库表结构平滑升级检查完成！");
+        } catch (Exception e) {
+            log.warn("[DatabaseInitializer] 数据库表结构自动升级发生非致命异常，跳过: {}", e.getMessage());
+        }
+    }
+
+    private void ensureColumn(DatabaseMetaData metaData, Statement stmt, String tableName, String columnName, String columnDef) {
+        try {
+            Set<String> existingColumns = new HashSet<>();
+            try (ResultSet rs = metaData.getColumns(null, null, tableName.toLowerCase(), null)) {
+                while (rs.next()) {
+                    existingColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                }
+            }
+            if (existingColumns.isEmpty()) {
+                try (ResultSet rs = metaData.getColumns(null, null, tableName.toUpperCase(), null)) {
+                    while (rs.next()) {
+                        existingColumns.add(rs.getString("COLUMN_NAME").toLowerCase());
+                    }
+                }
+            }
+
+            if (!existingColumns.contains(columnName.toLowerCase())) {
+                String sql = "ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnDef;
+                log.info("[DatabaseInitializer] 正在为表 {} 添加新增列: {}", tableName, columnName);
+                stmt.execute(sql);
+            }
+        } catch (Exception e) {
+            log.debug("[DatabaseInitializer] 表 {} 添加列 {} 检查提示: {}", tableName, columnName, e.getMessage());
+        }
+    }
+}

@@ -22,6 +22,7 @@ public class ProjectScoreRecord {
     private Long batchId;
     private Long expertUserId;
     private Long projectId;
+    private String evaluatorRoleType;
     private BigDecimal totalScore;
     private String status; // DRAFT, SUBMITTED
     private LocalDateTime submittedAt;

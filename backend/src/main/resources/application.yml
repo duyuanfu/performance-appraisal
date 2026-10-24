@@ -46,58 +46,72 @@ app:
   upload:
     dir: ./data/uploads/projects
 
-  # 业务参数配置：月度考核与年度项目评审默认指标
+  # 业务参数配置：V2 默认考核指标库（月度考核、目标绩效任务、专项与创新任务）
   default-metrics:
     monthly:
-      - metric-name: 工作能力
-        metric-desc: 专业业务技能与履职综合能力
+      - metric-name: 职责履行
+        metric-desc: 岗位职责履行与工作要求执行情况
         max-score: 100.0000
-        weight: 25.0000
+        weight: 30.0000
         sort-order: 1
-      - metric-name: 工作质量
-        metric-desc: 工作成果质量、合规与标准执行
+      - metric-name: 主要业绩
+        metric-desc: 月度重点业绩产出与实际工作成效
         max-score: 100.0000
-        weight: 25.0000
+        weight: 50.0000
         sort-order: 2
-      - metric-name: 工作态度
-        metric-desc: 履职态度、敬业精神与团队协作意识
+      - metric-name: 团队建设
+        metric-desc: 团队协作配合、作风建设与组织执行力
         max-score: 100.0000
         weight: 20.0000
         sort-order: 3
-      - metric-name: 工作效率
-        metric-desc: 任务推进时效性与响应解决速度
+
+    target-project:
+      - metric-name: 完成度
+        metric-desc: 项目目标达成与实际任务完成程度
         max-score: 100.0000
-        weight: 15.0000
-        sort-order: 4
-      - metric-name: 工作业务量
-        metric-desc: 承担重点工作负荷及实际业务产出量
+        weight: 30.0000
+        sort-order: 1
+      - metric-name: 完成质量
+        metric-desc: 项目产出质量、标准达成及业务赋能实效
         max-score: 100.0000
-        weight: 15.0000
-        sort-order: 5
+        weight: 50.0000
+        sort-order: 2
+      - metric-name: 完成时效性
+        metric-desc: 推进节奏、时间节点把控及完成时效
+        max-score: 100.0000
+        weight: 20.0000
+        sort-order: 3
+
+    special-innovation:
+      - metric-name: 特色亮点
+        metric-desc: 项目创新性、特色做法与突破亮点
+        max-score: 100.0000
+        weight: 30.0000
+        sort-order: 1
+      - metric-name: 产生质效
+        metric-desc: 实际业务成效、管理提升或经济技术效益
+        max-score: 100.0000
+        weight: 50.0000
+        sort-order: 2
+      - metric-name: 难度系数
+        metric-desc: 技术攻坚难度、协调复杂度与创新风险度
+        max-score: 100.0000
+        weight: 20.0000
+        sort-order: 3
 
     annual-project:
       - metric-name: 完成度
-        metric-desc: 项目目标达成与实际里程碑交付情况
+        metric-desc: 项目目标达成与实际任务完成程度
         max-score: 100.0000
-        weight: 20.0000
+        weight: 30.0000
         sort-order: 1
-      - metric-name: 质效
-        metric-desc: 项目产出质量标准与业务赋能效益
+      - metric-name: 完成质量
+        metric-desc: 项目产出质量、标准达成及业务赋能实效
         max-score: 100.0000
-        weight: 20.0000
+        weight: 50.0000
         sort-order: 2
-      - metric-name: 协作
-        metric-desc: 跨部门横向协同配合与资源整合度
+      - metric-name: 完成时效性
+        metric-desc: 推进节奏、时间节点把控及完成时效
         max-score: 100.0000
         weight: 20.0000
         sort-order: 3
-      - metric-name: 效率
-        metric-desc: 进度推进节奏与关键节点把控效率
-        max-score: 100.0000
-        weight: 20.0000
-        sort-order: 4
-      - metric-name: 合规
-        metric-desc: 合规管理、规范运作与风险把控
-        max-score: 100.0000
-        weight: 20.0000
-        sort-order: 5

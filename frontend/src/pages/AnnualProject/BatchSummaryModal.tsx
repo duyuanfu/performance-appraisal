@@ -1,15 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Table, Button, Space, Tag, Typography, message } from 'antd';
+import { Modal, Table, Button, Space, Tag, Typography, message, Card } from 'antd';
 import {
   DownloadOutlined,
   ReloadOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  TrophyOutlined,
 } from '@ant-design/icons';
 import request from '../../api/request';
 import { getProjectSummaryApi, AnnualProjectSummaryVO } from '../../api/project';
 
 const { Text } = Typography;
+
+const AWARD_TAG_MAP: Record<string, { label: string; color: string }> = {
+  SPECIAL: { label: '特等奖', color: 'gold' },
+  FIRST: { label: '一等奖', color: 'red' },
+  SECOND: { label: '二等奖', color: 'orange' },
+  THIRD: { label: '三等奖', color: 'blue' },
+  NONE: { label: '未获奖', color: 'default' },
+};
 
 interface Props {
   batchId: number | null;
@@ -52,7 +61,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `年度目标管理项目评审汇总表-${batchId}.xlsx`;
+      link.download = `${data?.batchName || '项目评审汇总'}-${batchId}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -65,78 +74,153 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
     }
   };
 
-  const dynamicColumns = [
+  const isSpecialInnovation = data?.batchType === 'SPECIAL_INNOVATION';
+  const isTargetProject = data?.batchType === 'TARGET_PROJECT';
+
+  const columns = [
     {
-      title: '排名',
+      title: '排序',
       dataIndex: 'rank',
       key: 'rank',
       width: 70,
       fixed: 'left' as const,
       render: (rank: number) => {
-        const color =
-          rank === 1 ? '#f5222d' : rank === 2 ? '#fa8c16' : rank === 3 ? '#faad14' : '#595959';
+        const color = rank === 1 ? '#f5222d' : rank === 2 ? '#fa8c16' : rank === 3 ? '#faad14' : '#595959';
         return <Tag color={color} style={{ fontWeight: 'bold' }}>{rank}</Tag>;
       },
-    },
-    {
-      title: '项目序号',
-      dataIndex: 'projectCode',
-      key: 'projectCode',
-      width: 90,
-      fixed: 'left' as const,
     },
     {
       title: '项目名称',
       dataIndex: 'projectName',
       key: 'projectName',
-      width: 200,
+      width: 220,
       fixed: 'left' as const,
     },
     {
-      title: '项目负责人',
-      dataIndex: 'ownerName',
-      key: 'ownerName',
-      width: 110,
+      title: '申报部门',
+      dataIndex: 'department',
+      key: 'department',
+      width: 140,
+      render: (d: string) => d || '-',
     },
-    // Metrics average scores
-    ...(data?.metrics || []).map((m) => ({
-      title: `${m.metricName} (${Number(m.maxScore).toFixed(0)}分)`,
-      key: `metric_${m.id}`,
-      width: 120,
-      render: (_: any, record: any) => {
-        const avg = record.metricAvgScores?.[m.id!];
-        return avg !== undefined ? Number(avg).toFixed(4) : <Text type="secondary">-</Text>;
-      },
-    })),
-    // Experts scores
-    ...(data?.experts || []).map((e) => ({
-      title: `${e.realName} (${Number(e.weight).toFixed(2)}%)`,
-      key: `expert_${e.expertUserId}`,
-      width: 130,
-      render: (_: any, record: any) => {
-        const score = record.expertScores?.[e.expertUserId];
-        return score !== undefined ? Number(score).toFixed(4) : <Text type="secondary">-</Text>;
-      },
-    })),
+    ...(isSpecialInnovation
+      ? [
+          {
+            title: '类别',
+            dataIndex: 'category',
+            key: 'category',
+            width: 100,
+            render: (c: string) => (
+              <Tag color={c === 'MANAGEMENT' ? 'purple' : 'cyan'}>
+                {c === 'MANAGEMENT' ? '管理类' : '业务类'}
+              </Tag>
+            ),
+          },
+          {
+            title: '评定奖项',
+            dataIndex: 'awardTier',
+            key: 'awardTier',
+            width: 120,
+            render: (tier: string) => {
+              const item = AWARD_TAG_MAP[tier] || { label: '未获奖', color: 'default' };
+              return (
+                <Tag icon={tier && tier !== 'NONE' ? <TrophyOutlined /> : undefined} color={item.color}>
+                  {item.label}
+                </Tag>
+              );
+            },
+          },
+        ]
+      : []),
     {
-      title: '最终综合得分',
+      title: '主要领导评分',
+      dataIndex: 'primaryLeaderScore',
+      key: 'primaryLeaderScore',
+      width: 130,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    ...(isTargetProject
+      ? [
+          {
+            title: '分管领导评分',
+            dataIndex: 'supervisorLeaderScore',
+            key: 'supervisorLeaderScore',
+            width: 130,
+            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+          },
+        ]
+      : []),
+    {
+      title: '其它中心领导评分',
+      dataIndex: 'otherLeaderScore',
+      key: 'otherLeaderScore',
+      width: 150,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '正职评分',
+      dataIndex: 'headScore',
+      key: 'headScore',
+      width: 130,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '代表/专家评分',
+      dataIndex: 'expertScore',
+      key: 'expertScore',
+      width: 130,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '综合得分',
       dataIndex: 'compositeScore',
       key: 'compositeScore',
-      width: 140,
+      width: 130,
       fixed: 'right' as const,
       render: (score: number) => (
-        <Text strong style={{ color: '#1890ff', fontSize: 15 }}>
+        <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
           {Number(score).toFixed(4)}
         </Text>
       ),
     },
+    ...(isTargetProject
+      ? [
+          {
+            title: '得分系数',
+            dataIndex: 'scoreCoefficient',
+            key: 'scoreCoefficient',
+            width: 110,
+            fixed: 'right' as const,
+            render: (coef: number) => (coef ? Number(coef).toFixed(4) : '1.0000'),
+          },
+          {
+            title: '部门奖励金额(万元)',
+            dataIndex: 'bonusAmount',
+            key: 'bonusAmount',
+            width: 160,
+            fixed: 'right' as const,
+            render: (amt: number) => (
+              <Text strong style={{ color: '#52c41a' }}>
+                {amt ? `${Number(amt).toFixed(2)} 万元` : '-'}
+              </Text>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
     <Modal
       title={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 32 }}>
-          <span>年度目标管理项目评审汇总 - {data?.batchName}</span>
+          <span>
+            {isSpecialInnovation
+              ? '专项与创新任务评审汇总与奖次评定'
+              : isTargetProject
+              ? '目标绩效任务评审汇总与奖金测算'
+              : '项目评审汇总排名'}{' '}
+            - {data?.batchName}
+          </span>
           <Space>
             <Button icon={<ReloadOutlined />} size="small" onClick={loadSummary}>
               刷新
@@ -160,33 +244,40 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
           关闭
         </Button>,
       ]}
-      width={1100}
+      width={1280}
       destroyOnClose
     >
-      <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ marginRight: 12 }}>评审专家打分提交进度：</Text>
-        <Space wrap>
-          {data?.experts.map((e) => (
-            <Tag
-              key={e.expertUserId}
-              icon={e.submitted ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
-              color={e.submitted ? 'success' : 'warning'}
-            >
-              {e.realName} (权重 {Number(e.weight).toFixed(2)}%)：{e.submitted ? '已提交' : '未提交/草稿'}
-            </Tag>
-          ))}
-        </Space>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <Text strong style={{ marginRight: 12 }}>评审提交进度：</Text>
+          <Space wrap>
+            {data?.experts.map((e) => (
+              <Tag
+                key={e.expertUserId}
+                icon={e.submitted ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
+                color={e.submitted ? 'success' : 'warning'}
+              >
+                {e.realName}：{e.submitted ? '已提交' : '未提交/草稿'}
+              </Tag>
+            ))}
+          </Space>
+        </div>
+        {data?.averageScore !== undefined && (
+          <Text strong style={{ fontSize: 13 }}>
+            所有参评项目平均分：<span style={{ color: '#1890ff' }}>{Number(data.averageScore).toFixed(4)} 分</span>
+          </Text>
+        )}
       </div>
 
       <Table
         rowKey="projectId"
-        columns={dynamicColumns}
+        columns={columns}
         dataSource={data?.rows || []}
         loading={loading}
         pagination={false}
-        scroll={{ x: 'max-content', y: 480 }}
-        bordered
         size="middle"
+        bordered
+        scroll={{ x: 1300 }}
       />
     </Modal>
   );

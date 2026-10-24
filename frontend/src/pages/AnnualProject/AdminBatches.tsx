@@ -37,6 +37,7 @@ import {
   listProjectBatchesApi,
   publishProjectBatchApi,
   completeProjectBatchApi,
+  deleteProjectBatchApi,
   saveProjectBatchApi,
   listProjectItemsApi,
   getProjectSummaryApi,
@@ -46,15 +47,26 @@ import {
 } from '../../api/project';
 import { listUsersApi } from '../../api/user';
 import { UserVO } from '../../api/auth';
+import { useAuth } from '../../context/AuthContext';
 import { MetricItem, getDefaultTemplatesApi } from '../../api/metric';
 import { MetricConfigTable } from '../../components/MetricConfig/MetricConfigTable';
 import { ProjectManagementModal } from './ProjectManagementModal';
 import { ProjectBatchSummaryModal } from './BatchSummaryModal';
 import { ExpertProgressModal } from './ExpertProgressModal';
+import { Popconfirm } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 
-export const AnnualProjectAdminBatchesPage: React.FC = () => {
+interface Props {
+  batchType?: 'TARGET_PROJECT' | 'SPECIAL_INNOVATION';
+}
+
+export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TARGET_PROJECT' }) => {
+  const { activeRole } = useAuth();
+  const isSpecialInnovation = batchType === 'SPECIAL_INNOVATION';
+  const pageTitle = isSpecialInnovation ? '专项与创新任务评审管理' : '目标绩效任务评审管理';
+
   const [batches, setBatches] = useState<ProjectBatchVO[]>([]);
   const [loading, setLoading] = useState(false);
   const [summaryModalBatchId, setSummaryModalBatchId] = useState<number | null>(null);
@@ -84,7 +96,7 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
   const loadBatches = async () => {
     setLoading(true);
     try {
-      const data = await listProjectBatchesApi();
+      const data = await listProjectBatchesApi({ batchType });
       setBatches(data);
     } finally {
       setLoading(false);
@@ -99,13 +111,13 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
   useEffect(() => {
     loadBatches();
     loadExperts();
-  }, []);
+  }, [batchType]);
 
   const handleOpenCreateModal = async () => {
     form.resetFields();
     setRelaunchBatchId(null);
-    // Default metrics for annual project
-    const defaultMetrics = await getDefaultTemplatesApi('ANNUAL_PROJECT');
+    const templateType = isSpecialInnovation ? 'SPECIAL_INNOVATION' : 'TARGET_PROJECT';
+    const defaultMetrics = await getDefaultTemplatesApi(templateType);
     setMetrics(defaultMetrics);
 
     // Auto distribute expert weights summing to 100% (matches monthly logic)
@@ -231,6 +243,7 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
       const payload: ProjectBatchSaveDTO = {
         id: relaunchBatchId || undefined,
         batchName: values.batchName,
+        batchType: batchType,
         appraisalPeriod: periodStr,
         startTime: values.dateRange?.[0]
           ? dayjs(values.dateRange[0]).format('YYYY-MM-DD HH:mm:ss')
@@ -243,7 +256,7 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
       };
 
       await saveProjectBatchApi(payload);
-      message.success(relaunchBatchId ? '项目评审批次已重新发起并进入评审状态' : '年度项目评审批次创建成功');
+      message.success(relaunchBatchId ? '项目评审批次已重新发起并进入评审状态' : '评审批次创建成功');
       setCreateModalVisible(false);
       setRelaunchBatchId(null);
       loadBatches();
@@ -388,6 +401,25 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
           >
             重新发起
           </Button>
+
+          {activeRole === 'SYS_ADMIN' && (
+            <Popconfirm
+              title="确定删除该项目评审批次？"
+              description="删除后该批次及其所有参评项目、材料和评分数据将彻底清除，不可恢复。"
+              onConfirm={async () => {
+                await deleteProjectBatchApi(record.id);
+                message.success('批次已成功删除');
+                loadBatches();
+              }}
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+            >
+              <Button type="link" danger size="small" icon={<DeleteOutlined />}>
+                删除
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },
@@ -472,7 +504,7 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
 
   return (
     <div>
-      <Card title="年度目标管理绩效评审批次管理" style={{ marginBottom: 16 }}>
+      <Card title={pageTitle} style={{ marginBottom: 16 }}>
         <Row justify="space-between" align="middle">
           <Col>
             <Space size="middle">
@@ -503,7 +535,7 @@ export const AnnualProjectAdminBatchesPage: React.FC = () => {
               icon={<PlusOutlined />}
               onClick={handleOpenCreateModal}
             >
-              创建年度项目评审批次
+              创建{isSpecialInnovation ? '专项与创新任务' : '目标绩效任务'}评审批次
             </Button>
           </Col>
         </Row>

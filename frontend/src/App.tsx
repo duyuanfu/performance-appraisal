@@ -14,9 +14,13 @@ import { ExpertEvaluationPage } from './pages/AnnualProject/ExpertEvaluation';
 const HomeRedirect: React.FC = () => {
   const { activeRole } = useAuth();
   switch (activeRole) {
+    case 'SYS_ADMIN':
+      return <Navigate to="/users" replace />;
     case 'ADMIN':
       return <Navigate to="/monthly-admin" replace />;
     case 'LEADER':
+    case 'DEPT_HEAD':
+    case 'DEPT_DEPUTY':
       return <Navigate to="/leader-scoring" replace />;
     case 'EXPERT':
       return <Navigate to="/expert-evaluation" replace />;
@@ -59,7 +63,9 @@ const App: React.FC = () => {
             <Route index element={<HomeRedirect />} />
             {/* Admin Routes */}
             <Route path="monthly-admin" element={<MonthlyAdminBatchesPage />} />
-            <Route path="annual-admin" element={<AnnualProjectAdminBatchesPage />} />
+            <Route path="annual-admin" element={<AnnualProjectAdminBatchesPage batchType="TARGET_PROJECT" />} />
+            <Route path="target-project-admin" element={<AnnualProjectAdminBatchesPage batchType="TARGET_PROJECT" />} />
+            <Route path="special-innovation-admin" element={<AnnualProjectAdminBatchesPage batchType="SPECIAL_INNOVATION" />} />
             <Route path="users" element={<UsersPage />} />
 
             {/* Leader Routes */}

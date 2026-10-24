@@ -16,6 +16,9 @@ public class ProjectBatchSaveDTO {
     @NotBlank(message = "评审批次名称不能为空")
     private String batchName;
 
+    private String batchType; // TARGET_PROJECT, SPECIAL_INNOVATION, ANNUAL_PROJECT
+    private String category; // BUSINESS, MANAGEMENT, ALL
+
     @NotBlank(message = "评审年度周期不能为空")
     private String appraisalPeriod; // e.g. 2026
 

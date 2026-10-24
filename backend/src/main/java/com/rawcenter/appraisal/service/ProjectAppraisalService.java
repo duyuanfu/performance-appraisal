@@ -14,10 +14,12 @@ import java.util.List;
 
 public interface ProjectAppraisalService {
     List<AppraisalBatch> listProjectBatches(String status, String keyword);
+    List<AppraisalBatch> listProjectBatches(String batchType, String status, String keyword);
     AppraisalBatch getProjectBatchDetail(Long batchId);
     void saveProjectBatch(ProjectBatchSaveDTO dto);
     void publishProjectBatch(Long batchId);
     void completeProjectBatch(Long batchId);
+    void deleteProjectBatch(Long batchId);
 
     List<ProjectItemVO> listProjectItems(Long batchId);
     void saveProjectItem(ProjectItemSaveDTO dto);

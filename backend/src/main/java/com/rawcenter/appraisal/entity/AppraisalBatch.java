@@ -20,8 +20,9 @@ public class AppraisalBatch {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String batchName;
-    private String batchType; // MONTHLY, ANNUAL_PROJECT
-    private String appraisalPeriod; // e.g. 2026-10
+    private String batchType; // MONTHLY, TARGET_PROJECT, SPECIAL_INNOVATION, ANNUAL_PROJECT
+    private String category; // BUSINESS, MANAGEMENT, ALL
+    private String appraisalPeriod; // e.g. 2026-10 or 2026
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime startTime;

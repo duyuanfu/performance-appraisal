@@ -32,21 +32,27 @@ import {
   listMonthlyBatchesApi,
   publishMonthlyBatchApi,
   completeMonthlyBatchApi,
+  deleteMonthlyBatchApi,
   saveMonthlyBatchApi,
   getMonthlyBatchSummaryApi,
+  getCandidateExamineesApi,
   MonthlyBatchVO,
   MonthlyBatchSaveDTO,
 } from '../../api/monthly';
 import { listUsersApi } from '../../api/user';
 import { UserVO } from '../../api/auth';
+import { useAuth } from '../../context/AuthContext';
 import { MetricItem, getDefaultTemplatesApi } from '../../api/metric';
 import { MetricConfigTable } from '../../components/MetricConfig/MetricConfigTable';
 import { BatchSummaryModal } from './BatchSummaryModal';
 import { LeaderProgressModal } from './LeaderProgressModal';
+import { Popconfirm } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 
 export const MonthlyAdminBatchesPage: React.FC = () => {
+  const { activeRole } = useAuth();
   const [batches, setBatches] = useState<MonthlyBatchVO[]>([]);
   const [loading, setLoading] = useState(false);
   const [summaryModalBatchId, setSummaryModalBatchId] = useState<number | null>(null);
@@ -79,7 +85,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
   const loadUsers = async () => {
     const [allLeaders, allExaminees] = await Promise.all([
       listUsersApi({ roleCode: 'LEADER' }),
-      listUsersApi({ roleCode: 'EMPLOYEE' }),
+      getCandidateExamineesApi(),
     ]);
     setLeaders(allLeaders);
     setExamineeCandidates(allExaminees);
@@ -382,6 +388,25 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
           >
             重新发起
           </Button>
+
+          {activeRole === 'SYS_ADMIN' && (
+            <Popconfirm
+              title="确定删除该月度考核批次？"
+              description="删除后该批次及其打分明细将彻底清除，不可恢复。"
+              onConfirm={async () => {
+                await deleteMonthlyBatchApi(record.id);
+                message.success('批次已成功删除');
+                loadBatches();
+              }}
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+            >
+              <Button type="link" danger size="small" icon={<DeleteOutlined />}>
+                删除
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },

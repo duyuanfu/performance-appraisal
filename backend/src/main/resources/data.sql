@@ -1,33 +1,106 @@
--- 1. Insert Initial Roles (INSERT IGNORE 避免重启覆盖或主键冲突)
+-- 1. Insert Initial Roles
 INSERT IGNORE INTO sys_role (id, role_code, role_name, description) VALUES
-(1, 'ADMIN', '管理员', '负责系统配置、任务发布、结果汇总与导出'),
-(2, 'LEADER', '中心领导', '负责月度绩效考核打分'),
-(3, 'EXPERT', '评审专家', '负责年度目标管理项目评审打分'),
-(4, 'EMPLOYEE', '被考核人员', '负责查看本人月度绩效考核结果与排名');
+(1, 'SYS_ADMIN', '系统管理员', '负责账号管理、组织架构维护与系统级敏感数据删除'),
+(2, 'ADMIN', '业务管理员', '负责考核项目创建、任务发布、催办与数据汇总'),
+(3, 'LEADER', '中心领导', '负责中心领导打分（主要领导、分管领导、其他中心领导）'),
+(4, 'DEPT_HEAD', '部门正职', '负责正职考评、部门互评及项目评审正职打分'),
+(5, 'DEPT_DEPUTY', '部门副职', '负责部门副职考评及副职互评'),
+(6, 'EXPERT', '评审专家', '负责目标绩效与专项创新任务专家打分'),
+(7, 'EMPLOYEE', '普通职工', '被考核人员，可查看本人考核结果');
 
--- 2. Insert Users (Default Password: "password123", SHA-256: ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f)
-INSERT IGNORE INTO sys_user (id, username, password_hash, real_name, department, position, email, phone, status) VALUES
-(1, 'admin', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '系统管理员', '原料中心综合处', '主管', 'admin@rawcenter.com', '13800000001', 1),
-(2, 'leader_zhang', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '张主任', '原料中心领导班子', '中心主任', 'zhang@rawcenter.com', '13800000002', 1),
-(3, 'leader_li', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '李副主任', '原料中心领导班子', '中心副主任', 'li@rawcenter.com', '13800000003', 1),
-(4, 'expert_wang', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '王专家', '技术评审委员会', '资深专家', 'wang@rawcenter.com', '13800000004', 1),
-(5, 'expert_zhao', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '赵专家', '战略规划委员会', '资深专家', 'zhao@rawcenter.com', '13800000005', 1),
-(6, 'expert_sun', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '孙专家', '质量安全委员会', '资深专家', 'sun@rawcenter.com', '13800000006', 1),
-(7, 'dept_qian', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '钱部长', '采购一处', '部门负责人', 'qian@rawcenter.com', '13800000007', 1),
-(8, 'dept_zhou', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '周部长', '采购二处', '部门负责人', 'zhou@rawcenter.com', '13800000008', 1),
-(9, 'dept_wu', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '吴部长', '仓储物流处', '部门负责人', 'wu@rawcenter.com', '13800000009', 1),
-(10, 'dept_zheng', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '郑部长', '品质检验处', '部门负责人', 'zheng@rawcenter.com', '13800000010', 1);
+-- 2. Insert Default Administrative & Compatibility Test Users
+INSERT IGNORE INTO sys_user (id, username, password_hash, real_name, department, position, title, position_category, supervisor_id, supervisor_name, dept_head_id, dept_head_name, email, phone, status) VALUES
+(1, 'admin', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '业务管理员', '原料中心', '业务管理员', '业务管理员', 'EMPLOYEE', NULL, '', NULL, '', 'admin@rawcenter.com', '13800000001', 1),
+(2, 'sys_admin', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '系统管理员', '原料中心', '系统管理员', '系统管理员', 'EMPLOYEE', NULL, '', NULL, '', 'sys_admin@rawcenter.com', '13800000002', 1),
+(3, 'leader_zhang', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '张主任', '原料中心领导班子', '中心主任', '中心主任', 'PRIMARY_LEADER', NULL, '', NULL, '', 'zhang@rawcenter.com', '13800000002', 1),
+(4, 'expert_wang', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '王专家', '技术评审委员会', '资深专家', '资深专家', 'EXPERT', NULL, '', NULL, '', 'wang@rawcenter.com', '13800000004', 1),
+(5, 'expert_zhao', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '赵专家', '战略规划委员会', '资深专家', '资深专家', 'EXPERT', NULL, '', NULL, '', 'zhao@rawcenter.com', '13800000005', 1),
+(6, 'expert_sun', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '孙专家', '质量安全委员会', '资深专家', '资深专家', 'EXPERT', NULL, '', NULL, '', 'sun@rawcenter.com', '13800000006', 1),
+(7, 'dept_qian', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '钱部长', '采购一处', '部门负责人', '部长', 'DEPT_HEAD', 3, '张主任', NULL, '', 'qian@rawcenter.com', '13800000007', 1),
+(8, 'dept_zhou', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '周部长', '采购二处', '部门负责人', '部长', 'DEPT_HEAD', 3, '张主任', NULL, '', 'zhou@rawcenter.com', '13800000008', 1),
+(9, 'dept_wu', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '吴部长', '仓储物流处', '部门负责人', '部长', 'DEPT_HEAD', 3, '张主任', NULL, '', 'wu@rawcenter.com', '13800000009', 1),
+(10, 'dept_zheng', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '郑部长', '品质检验处', '部门负责人', '部长', 'DEPT_HEAD', 3, '张主任', NULL, '', 'zheng@rawcenter.com', '13800000010', 1);
 
--- 3. Assign User Roles (Demonstrating multi-role support for dept_qian as both EMPLOYEE and EXPERT)
+-- 3. Insert 31 Core Users from 《评审管理系统相关.xlsx》 (IDs 11 ~ 41)
+INSERT IGNORE INTO sys_user (id, username, password_hash, real_name, department, position, title, position_category, supervisor_id, supervisor_name, dept_head_id, dept_head_name, email, phone, status) VALUES
+(11, '13908866003', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '陈剑', '中心领导', '中心主任', '中心主任', 'PRIMARY_LEADER', NULL, '', NULL, '', '', '13908866003', 1),
+(12, '13888952359', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '施文萃', '中心领导', '中心副主任', '中心副主任', 'CENTER_LEADER', NULL, '', NULL, '', '', '13888952359', 1),
+(13, '13987100399', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '尚松', '中心领导', '纪委书记', '纪委书记', 'CENTER_LEADER', NULL, '', NULL, '', '', '13987100399', 1),
+(14, '13908775018', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '陆俊平', '中心领导', '中心副主任', '中心副主任', 'CENTER_LEADER', NULL, '', NULL, '', '', '13908775018', 1),
+(15, '13888279030', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '邱晔', '中心领导', '中心副主任', '中心副主任', 'CENTER_LEADER', NULL, '', NULL, '', '', '13888279030', 1),
+(16, '13759151582', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '张光煦', '中心领导', '中心副主任', '中心副主任', 'CENTER_LEADER', NULL, '', NULL, '', '', '13759151582', 1),
+(17, '13987184673', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '王昆淼', '办公室', '主任', '主任', 'DEPT_HEAD', 12, '施文萃', NULL, '', '', '13987184673', 1),
+(18, '13888837073', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '张玉丰', '政工部', '部长', '部长', 'DEPT_HEAD', 15, '邱晔', NULL, '', '', '13888837073', 1),
+(19, '13708457899', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '高翔', '纪检监察部（审计办）', '部长', '部长', 'DEPT_HEAD', 13, '尚松', NULL, '', '', '13708457899', 1),
+(20, '13987187511', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '张东萍', '财务管理部', '部长', '部长', 'DEPT_HEAD', 14, '陆俊平', NULL, '', '', '13987187511', 1),
+(21, '15912553435', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '李正兵', '规范内管部', '部长', '部长', 'DEPT_HEAD', 12, '施文萃', NULL, '', '', '15912553435', 1),
+(22, '18787786126', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '苏振刚', '计划管理部', '部长', '部长', 'DEPT_HEAD', 16, '张光煦', NULL, '', '', '18787786126', 1),
+(23, '13888099122', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '李觅', '采购调拨部', '部长', '部长', 'DEPT_HEAD', 16, '张光煦', NULL, '', '', '13888099122', 1),
+(24, '18056098288', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '焦天雷', '技术开发部', '部长', '部长', 'DEPT_HEAD', 14, '陆俊平', NULL, '', '', '18056098288', 1),
+(25, '13987175992', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '刘红祥', '复烤管理部', '部长', '部长', 'DEPT_HEAD', 15, '邱晔', NULL, '', '', '13987175992', 1),
+(26, '13759496351', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '胡战军', '质量和基地管理部', '部长', '部长', 'DEPT_HEAD', 14, '陆俊平', NULL, '', '', '13759496351', 1),
+(27, '18608771972', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '胡保文', '样品管理部', '部长', '部长', 'DEPT_HEAD', 15, '邱晔', NULL, '', '', '18608771972', 1),
+(28, '15208773024', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '田阳阳', '办公室', '副主任', '副主任', 'DEPT_DEPUTY', 12, '施文萃', 17, '王昆淼', '', '15208773024', 1),
+(29, '18687778502', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '陈超', '办公室', '副主任', '副主任', 'DEPT_DEPUTY', 12, '施文萃', 17, '王昆淼', '', '18687778502', 1),
+(30, '13529376500', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '张燕', '政工部', '部长', '部长', 'DEPT_DEPUTY', 15, '邱晔', 18, '张玉丰', '', '13529376500', 1),
+(31, '18213804751', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '殷艳飞', '政工部', '部长', '部长', 'DEPT_DEPUTY', 15, '邱晔', 18, '张玉丰', '', '18213804751', 1),
+(32, '15925143513', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '杨燕萍', '计划管理部', '部长', '部长', 'DEPT_DEPUTY', 16, '张光煦', 22, '苏振刚', '', '15925143513', 1),
+(33, '15087748370', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '谢新乔', '采购调拨部', '部长', '部长', 'DEPT_DEPUTY', 16, '张光煦', 23, '李觅', '', '15087748370', 1),
+(34, '13988088508', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '张梅', '采购调拨部', '部长', '部长', 'DEPT_DEPUTY', 16, '张光煦', 23, '李觅', '', '13988088508', 1),
+(35, '13529153730', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '朱杰', '技术开发部', '部长', '部长', 'DEPT_DEPUTY', 14, '陆俊平', 24, '焦天雷', '', '13529153730', 1),
+(36, '13708775085', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '韩莹', '技术开发部', '部长', '部长', 'DEPT_DEPUTY', 14, '陆俊平', 24, '焦天雷', '', '13708775085', 1),
+(37, '18214172388', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '严杰', '复烤管理部', '部长', '部长', 'DEPT_DEPUTY', 15, '邱晔', 25, '刘红祥', '', '18214172388', 1),
+(38, '15096692827', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '何晓健', '质量和基地管理部', '部长', '部长', 'DEPT_DEPUTY', 14, '陆俊平', 26, '胡战军', '', '15096692827', 1),
+(39, '13759457660', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '高锐', '样品管理部', '副部长', '副部长', 'DEPT_DEPUTY', 15, '邱晔', 27, '胡保文', '', '13759457660', 1),
+(40, '13085371368', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '徐济仓', '技术开发部', '职工', '职工', 'EXPERT', NULL, '', NULL, '', '', '13085371368', 1),
+(41, '17787141508', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '刘海业', '政工部', '职工', '职工', 'EXPERT', NULL, '', NULL, '', '', '17787141508', 1);
+
+-- 4. Assign User Roles (INSERT IGNORE)
 INSERT IGNORE INTO sys_user_role (user_id, role_id) VALUES
-(1, 1), -- admin -> ADMIN
-(2, 2), -- leader_zhang -> LEADER
-(3, 2), -- leader_li -> LEADER
-(4, 3), -- expert_wang -> EXPERT
-(5, 3), -- expert_zhao -> EXPERT
-(6, 3), -- expert_sun -> EXPERT
-(7, 4), -- dept_qian -> EMPLOYEE
-(7, 3), -- dept_qian -> EXPERT (一人多角)
-(8, 4), -- dept_zhou -> EMPLOYEE
-(9, 4), -- dept_wu -> EMPLOYEE
-(10, 4); -- dept_zheng -> EMPLOYEE
+-- 管理员
+(1, 2), -- admin -> ADMIN (业务管理员)
+(2, 1), -- sys_admin -> SYS_ADMIN (系统管理员)
+
+-- 兼容旧测试账号角色
+(3, 3), -- leader_zhang -> LEADER
+(4, 6), -- expert_wang -> EXPERT
+(5, 6), -- expert_zhao -> EXPERT
+(6, 6), -- expert_sun -> EXPERT
+(7, 4), (7, 6), (7, 7), -- dept_qian -> DEPT_HEAD, EXPERT, EMPLOYEE
+(8, 4), (8, 7),
+(9, 4), (9, 7),
+(10, 4), (10, 7),
+
+-- 中心领导 (LEADER)
+(11, 3), (12, 3), (13, 3), (14, 3), (15, 3), (16, 3),
+
+-- 部门正职 (DEPT_HEAD, EMPLOYEE)
+(17, 4), (17, 7),
+(18, 4), (18, 7),
+(19, 4), (19, 7),
+(20, 4), (20, 7),
+(21, 4), (21, 7),
+(22, 4), (22, 7),
+(23, 4), (23, 7),
+(24, 4), (24, 7),
+(25, 4), (25, 7),
+(26, 4), (26, 7),
+(27, 4), (27, 7),
+
+-- 部门副职 (DEPT_DEPUTY, EMPLOYEE)
+(28, 5), (28, 7),
+(29, 5), (29, 7),
+(30, 5), (30, 7),
+(31, 5), (31, 7),
+(32, 5), (32, 7),
+(33, 5), (33, 7),
+(34, 5), (34, 7),
+(35, 5), (35, 7),
+(36, 5), (36, 7),
+(37, 5), (37, 7),
+(38, 5), (38, 7),
+(39, 5), (39, 7), (39, 6), -- 高锐兼任评审专家
+
+-- 评审专家 (EXPERT)
+(40, 6),
+(41, 6);

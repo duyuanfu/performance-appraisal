@@ -12,9 +12,15 @@ export interface UserVO {
   username: string;
   realName: string;
   department: string;
-  position: string;
-  email: string;
-  phone: string;
+  position?: string;
+  title?: string;
+  positionCategory?: string;
+  supervisorId?: number;
+  supervisorName?: string;
+  deptHeadId?: number;
+  deptHeadName?: string;
+  email?: string;
+  phone?: string;
   status: number;
   roles: RoleVO[];
 }
@@ -25,7 +31,9 @@ export interface LoginResponse {
   username: string;
   realName: string;
   department: string;
-  position: string;
+  position?: string;
+  title?: string;
+  positionCategory?: string;
   activeRole: string;
   roles: RoleVO[];
 }

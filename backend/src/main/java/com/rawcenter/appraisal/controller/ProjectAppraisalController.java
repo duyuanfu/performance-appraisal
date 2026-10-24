@@ -36,9 +36,10 @@ public class ProjectAppraisalController {
 
     @GetMapping("/batches")
     public Result<List<AppraisalBatch>> listProjectBatches(
+            @RequestParam(required = false) String batchType,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword) {
-        return Result.success(projectAppraisalService.listProjectBatches(status, keyword));
+        return Result.success(projectAppraisalService.listProjectBatches(batchType, status, keyword));
     }
 
     @GetMapping("/batches/{id}")
@@ -88,8 +89,23 @@ public class ProjectAppraisalController {
 
     @DeleteMapping("/items/{id}")
     public Result<Void> deleteProjectItem(@PathVariable Long id) {
+        checkSysAdmin();
         projectAppraisalService.deleteProjectItem(id);
         return Result.success();
+    }
+
+    @DeleteMapping("/batches/{id}")
+    public Result<Void> deleteProjectBatch(@PathVariable Long id) {
+        checkSysAdmin();
+        projectAppraisalService.deleteProjectBatch(id);
+        return Result.success();
+    }
+
+    private void checkSysAdmin() {
+        com.rawcenter.appraisal.common.UserContext.CurrentUser u = com.rawcenter.appraisal.common.UserContext.get();
+        if (u != null && !"SYS_ADMIN".equalsIgnoreCase(u.getActiveRole()) && !"sys_admin".equalsIgnoreCase(u.getUsername())) {
+            throw new com.rawcenter.appraisal.common.BusinessException(403, "权限不足：项目与评审批次删除功能仅限【系统管理员】操作");
+        }
     }
 
     @PostMapping("/items/{id}/upload-pdf")

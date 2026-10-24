@@ -16,6 +16,7 @@ import com.rawcenter.appraisal.vo.ExamineePersonalResultVO;
 import com.rawcenter.appraisal.vo.MonthlyBatchVO;
 import com.rawcenter.appraisal.vo.MonthlyLeaderScoringVO;
 import com.rawcenter.appraisal.vo.MonthlySummaryVO;
+import com.rawcenter.appraisal.vo.UserVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
     private final MonthlyScoreRecordMapper scoreRecordMapper;
     private final MonthlyScoreDetailMapper scoreDetailMapper;
     private final SysUserMapper userMapper;
+    private final AppraisalMetricMapper metricMapper;
     private final MetricService metricService;
 
     @Override
@@ -228,9 +230,20 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .build());
         }
 
-        // 3. Save Examinees
+        // 3. Save Examinees: exclude center leaders and review experts
         examineeMapper.delete(new LambdaQueryWrapper<MonthlyExaminee>().eq(MonthlyExaminee::getBatchId, batchId));
-        List<SysUser> examineeUsers = userMapper.selectBatchIds(dto.getExamineeUserIds());
+        List<Long> targetUserIds = dto.getExamineeUserIds();
+        if (CollectionUtils.isEmpty(targetUserIds)) {
+            // Auto default to all candidates if empty
+            targetUserIds = listCandidateExaminees().stream().map(UserVO::getId).collect(Collectors.toList());
+        }
+
+        List<SysUser> examineeUsers = userMapper.selectBatchIds(targetUserIds).stream()
+                .filter(u -> !"PRIMARY_LEADER".equalsIgnoreCase(u.getPositionCategory())
+                        && !"CENTER_LEADER".equalsIgnoreCase(u.getPositionCategory())
+                        && !"EXPERT".equalsIgnoreCase(u.getPositionCategory()))
+                .collect(Collectors.toList());
+
         for (SysUser u : examineeUsers) {
             examineeMapper.insert(MonthlyExaminee.builder()
                     .batchId(batchId)
@@ -239,6 +252,28 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .position(u.getPosition())
                     .build());
         }
+    }
+
+    @Override
+    public List<UserVO> listCandidateExaminees() {
+        List<SysUser> users = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                .notIn(SysUser::getPositionCategory, Arrays.asList("PRIMARY_LEADER", "CENTER_LEADER", "EXPERT"))
+                .eq(SysUser::getStatus, 1)
+                .orderByAsc(SysUser::getId));
+        return users.stream().map(u -> UserVO.builder()
+                .id(u.getId())
+                .username(u.getUsername())
+                .realName(u.getRealName())
+                .department(u.getDepartment())
+                .position(u.getPosition())
+                .title(u.getTitle())
+                .positionCategory(u.getPositionCategory())
+                .supervisorId(u.getSupervisorId())
+                .supervisorName(u.getSupervisorName())
+                .deptHeadId(u.getDeptHeadId())
+                .deptHeadName(u.getDeptHeadName())
+                .status(u.getStatus())
+                .build()).collect(Collectors.toList());
     }
 
     @Override
@@ -280,6 +315,26 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteMonthlyBatch(Long batchId) {
+        AppraisalBatch batch = batchMapper.selectById(batchId);
+        if (batch == null) {
+            throw new BusinessException(404, "批次不存在");
+        }
+        List<MonthlyScoreRecord> records = scoreRecordMapper.selectList(new LambdaQueryWrapper<MonthlyScoreRecord>()
+                .eq(MonthlyScoreRecord::getBatchId, batchId));
+        if (!records.isEmpty()) {
+            List<Long> recordIds = records.stream().map(MonthlyScoreRecord::getId).collect(Collectors.toList());
+            scoreDetailMapper.delete(new LambdaQueryWrapper<MonthlyScoreDetail>().in(MonthlyScoreDetail::getRecordId, recordIds));
+            scoreRecordMapper.delete(new LambdaQueryWrapper<MonthlyScoreRecord>().eq(MonthlyScoreRecord::getBatchId, batchId));
+        }
+        evaluatorMapper.delete(new LambdaQueryWrapper<MonthlyEvaluator>().eq(MonthlyEvaluator::getBatchId, batchId));
+        examineeMapper.delete(new LambdaQueryWrapper<MonthlyExaminee>().eq(MonthlyExaminee::getBatchId, batchId));
+        metricMapper.delete(new LambdaQueryWrapper<AppraisalMetric>().eq(AppraisalMetric::getBatchId, batchId));
+        batchMapper.deleteById(batchId);
+    }
+
+    @Override
     public MonthlyLeaderScoringVO getLeaderScoringData(Long batchId) {
         Long leaderUserId = UserContext.getUserId();
         AppraisalBatch batch = batchMapper.selectById(batchId);
@@ -291,12 +346,21 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             throw new BusinessException(400, "该月度考核批次尚未正式发布，暂不可开展打分");
         }
 
-        // Check if user is assigned as evaluator
+        // Check if user is assigned as evaluator or has valid leadership/head/deputy role
         MonthlyEvaluator evaluator = evaluatorMapper.selectOne(new LambdaQueryWrapper<MonthlyEvaluator>()
                 .eq(MonthlyEvaluator::getBatchId, batchId)
                 .eq(MonthlyEvaluator::getLeaderUserId, leaderUserId));
+        SysUser currentEvaluator = userMapper.selectById(leaderUserId);
+        String evaluatorPos = currentEvaluator != null && currentEvaluator.getPositionCategory() != null ? currentEvaluator.getPositionCategory() : "";
+
         if (evaluator == null) {
-            throw new BusinessException(403, "您不是该批次的评审领导");
+            boolean isAllowed = "PRIMARY_LEADER".equalsIgnoreCase(evaluatorPos)
+                    || "CENTER_LEADER".equalsIgnoreCase(evaluatorPos)
+                    || "DEPT_HEAD".equalsIgnoreCase(evaluatorPos)
+                    || "DEPT_DEPUTY".equalsIgnoreCase(evaluatorPos);
+            if (!isAllowed) {
+                throw new BusinessException(403, "您不是该批次的考评人员");
+            }
         }
 
         List<AppraisalMetric> metrics = metricService.listMetricsByBatchId(batchId);
@@ -328,18 +392,65 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         Map<Long, MonthlyScoreRecord> recordMap = records.stream()
                 .collect(Collectors.toMap(MonthlyScoreRecord::getExamineeUserId, r -> r));
 
+        // Filter examinees by evaluator relationship
+        List<MonthlyExaminee> targetExaminees = new ArrayList<>();
+        for (MonthlyExaminee ex : examinees) {
+            SysUser u = userMap.get(ex.getExamineeUserId());
+            if (u == null) continue;
+            if (u.getId().equals(leaderUserId)) continue; // 不自评
+
+            if ("DEPT_HEAD".equalsIgnoreCase(evaluatorPos)) {
+                // 正职互评 + 本部门副职
+                if ("DEPT_HEAD".equalsIgnoreCase(u.getPositionCategory())) {
+                    targetExaminees.add(ex);
+                } else if ("DEPT_DEPUTY".equalsIgnoreCase(u.getPositionCategory())) {
+                    if (u.getDeptHeadId() != null && u.getDeptHeadId().equals(leaderUserId)) {
+                        targetExaminees.add(ex);
+                    }
+                } else if (!StringUtils.hasText(u.getPositionCategory())) {
+                    targetExaminees.add(ex);
+                }
+            } else if ("DEPT_DEPUTY".equalsIgnoreCase(evaluatorPos)) {
+                // 副职互评
+                if ("DEPT_DEPUTY".equalsIgnoreCase(u.getPositionCategory()) || !StringUtils.hasText(u.getPositionCategory())) {
+                    targetExaminees.add(ex);
+                }
+            } else {
+                targetExaminees.add(ex);
+            }
+        }
+
         String leaderStatus = "DRAFT";
-        if (!records.isEmpty()) {
-            boolean allSubmitted = records.size() == examinees.size() && records.stream().allMatch(r -> "SUBMITTED".equals(r.getStatus()));
+        if (!records.isEmpty() && !targetExaminees.isEmpty()) {
+            boolean allSubmitted = records.size() >= targetExaminees.size() && records.stream().allMatch(r -> "SUBMITTED".equals(r.getStatus()));
             if (allSubmitted) {
                 leaderStatus = "SUBMITTED";
             }
         }
 
         List<MonthlyLeaderScoringVO.ExamineeScoringRowVO> rows = new ArrayList<>();
-        for (MonthlyExaminee ex : examinees) {
+        for (MonthlyExaminee ex : targetExaminees) {
             SysUser u = userMap.get(ex.getExamineeUserId());
             MonthlyScoreRecord rec = recordMap.get(ex.getExamineeUserId());
+
+            String relationship = "评价领导";
+            if ("PRIMARY_LEADER".equalsIgnoreCase(evaluatorPos)) {
+                relationship = "中心主要领导";
+            } else if ("CENTER_LEADER".equalsIgnoreCase(evaluatorPos)) {
+                if (u != null && u.getSupervisorId() != null && u.getSupervisorId().equals(leaderUserId)) {
+                    relationship = "分管领导";
+                } else {
+                    relationship = "其他中心领导";
+                }
+            } else if ("DEPT_HEAD".equalsIgnoreCase(evaluatorPos)) {
+                if (u != null && "DEPT_DEPUTY".equalsIgnoreCase(u.getPositionCategory())) {
+                    relationship = "本部门正职";
+                } else {
+                    relationship = "部门正职互评";
+                }
+            } else if ("DEPT_DEPUTY".equalsIgnoreCase(evaluatorPos)) {
+                relationship = "部门副职互评";
+            }
 
             Map<Long, BigDecimal> scoreMap = new HashMap<>();
             BigDecimal totalScore = BigDecimal.ZERO;
@@ -358,6 +469,8 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .realName(u != null ? u.getRealName() : "未知")
                     .department(ex.getDepartment())
                     .position(ex.getPosition())
+                    .positionCategory(u != null ? u.getPositionCategory() : "")
+                    .evaluatorRelationship(relationship)
                     .metricScores(scoreMap)
                     .totalScore(totalScore)
                     .build());
@@ -713,6 +826,115 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             summaryRows.get(i).setRank(i + 1);
         }
 
+        // Build Tiered Rows: Department Heads (正职) and Department Deputies (副职)
+        List<MonthlySummaryVO.TierSummaryRowVO> headRows = new ArrayList<>();
+        List<MonthlySummaryVO.TierSummaryRowVO> deputyRows = new ArrayList<>();
+
+        for (MonthlyExaminee ex : examinees) {
+            SysUser u = examineeUserMap.get(ex.getExamineeUserId());
+            if (u == null) continue;
+            String posCat = u.getPositionCategory();
+
+            BigDecimal primaryScore = BigDecimal.ZERO;
+            BigDecimal supervisorScore = BigDecimal.ZERO;
+            List<BigDecimal> otherLeaderScores = new ArrayList<>();
+            List<BigDecimal> peerScores = new ArrayList<>();
+            BigDecimal deptHeadScore = BigDecimal.ZERO;
+
+            for (MonthlyScoreRecord rec : allRecords) {
+                if (!rec.getExamineeUserId().equals(ex.getExamineeUserId())) continue;
+                if (!"SUBMITTED".equals(rec.getStatus())) continue;
+
+                SysUser evaluatorUser = userMapper.selectById(rec.getLeaderUserId());
+                if (evaluatorUser == null) continue;
+                String evPos = evaluatorUser.getPositionCategory();
+
+                if ("PRIMARY_LEADER".equalsIgnoreCase(evPos)) {
+                    primaryScore = rec.getTotalScore();
+                } else if ("CENTER_LEADER".equalsIgnoreCase(evPos)) {
+                    if (u.getSupervisorId() != null && u.getSupervisorId().equals(rec.getLeaderUserId())) {
+                        supervisorScore = rec.getTotalScore();
+                    } else {
+                        otherLeaderScores.add(rec.getTotalScore());
+                    }
+                } else if ("DEPT_HEAD".equalsIgnoreCase(evPos)) {
+                    if ("DEPT_DEPUTY".equalsIgnoreCase(posCat) && u.getDeptHeadId() != null && u.getDeptHeadId().equals(rec.getLeaderUserId())) {
+                        deptHeadScore = rec.getTotalScore();
+                    } else if ("DEPT_HEAD".equalsIgnoreCase(posCat)) {
+                        peerScores.add(rec.getTotalScore());
+                    }
+                } else if ("DEPT_DEPUTY".equalsIgnoreCase(evPos)) {
+                    if ("DEPT_DEPUTY".equalsIgnoreCase(posCat)) {
+                        peerScores.add(rec.getTotalScore());
+                    }
+                }
+            }
+
+            BigDecimal otherLeaderAvg = otherLeaderScores.isEmpty() ? BigDecimal.ZERO
+                    : otherLeaderScores.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(new BigDecimal(otherLeaderScores.size()), 4, RoundingMode.HALF_UP);
+
+            BigDecimal peerAvg = peerScores.isEmpty() ? BigDecimal.ZERO
+                    : peerScores.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(new BigDecimal(peerScores.size()), 4, RoundingMode.HALF_UP);
+
+            if ("DEPT_HEAD".equalsIgnoreCase(posCat)) {
+                // 正职: 主要领导25% + 分管领导35% + 其他中心领导15% + 部门正职互评25%
+                BigDecimal headComposite = primaryScore.multiply(new BigDecimal("0.25"))
+                        .add(supervisorScore.multiply(new BigDecimal("0.35")))
+                        .add(otherLeaderAvg.multiply(new BigDecimal("0.15")))
+                        .add(peerAvg.multiply(new BigDecimal("0.25")))
+                        .setScale(4, RoundingMode.HALF_UP);
+
+                headRows.add(MonthlySummaryVO.TierSummaryRowVO.builder()
+                        .examineeUserId(ex.getExamineeUserId())
+                        .realName(u.getRealName())
+                        .department(ex.getDepartment())
+                        .position(ex.getPosition())
+                        .positionCategory("DEPT_HEAD")
+                        .primaryLeaderScore(primaryScore)
+                        .supervisorLeaderScore(supervisorScore)
+                        .otherLeaderScore(otherLeaderAvg)
+                        .deptHeadScore(BigDecimal.ZERO)
+                        .peerScore(peerAvg)
+                        .compositeScore(headComposite)
+                        .rank(1)
+                        .build());
+            } else if ("DEPT_DEPUTY".equalsIgnoreCase(posCat)) {
+                // 副职: 中心分管领导35% + 其他中心领导20% + 本部门正职30% + 部门副职互评15%
+                BigDecimal deputyComposite = supervisorScore.multiply(new BigDecimal("0.35"))
+                        .add(otherLeaderAvg.multiply(new BigDecimal("0.20")))
+                        .add(deptHeadScore.multiply(new BigDecimal("0.30")))
+                        .add(peerAvg.multiply(new BigDecimal("0.15")))
+                        .setScale(4, RoundingMode.HALF_UP);
+
+                deputyRows.add(MonthlySummaryVO.TierSummaryRowVO.builder()
+                        .examineeUserId(ex.getExamineeUserId())
+                        .realName(u.getRealName())
+                        .department(ex.getDepartment())
+                        .position(ex.getPosition())
+                        .positionCategory("DEPT_DEPUTY")
+                        .primaryLeaderScore(BigDecimal.ZERO)
+                        .supervisorLeaderScore(supervisorScore)
+                        .otherLeaderScore(otherLeaderAvg)
+                        .deptHeadScore(deptHeadScore)
+                        .peerScore(peerAvg)
+                        .compositeScore(deputyComposite)
+                        .rank(1)
+                        .build());
+            }
+        }
+
+        headRows.sort((a, b) -> b.getCompositeScore().compareTo(a.getCompositeScore()));
+        for (int i = 0; i < headRows.size(); i++) {
+            headRows.get(i).setRank(i + 1);
+        }
+
+        deputyRows.sort((a, b) -> b.getCompositeScore().compareTo(a.getCompositeScore()));
+        for (int i = 0; i < deputyRows.size(); i++) {
+            deputyRows.get(i).setRank(i + 1);
+        }
+
         return MonthlySummaryVO.builder()
                 .batchId(batchId)
                 .batchName(batch.getBatchName())
@@ -721,6 +943,8 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .metrics(metrics)
                 .leaders(leaderHeaders)
                 .rows(summaryRows)
+                .headRows(headRows)
+                .deputyRows(deputyRows)
                 .build();
     }
 
@@ -763,20 +987,95 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         MonthlySummaryVO summary = getMonthlyBatchSummary(batchId);
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            com.alibaba.excel.ExcelWriter excelWriter = EasyExcel.write(out)
+                    .excelType(ExcelTypeEnum.XLSX)
+                    .build();
+
+            int sheetIndex = 0;
+
+            // Sheet 1: 内设部门正职考评汇总表
+            if (!CollectionUtils.isEmpty(summary.getHeadRows())) {
+                List<List<String>> headHeaders = new ArrayList<>();
+                headHeaders.add(List.of("序号"));
+                headHeaders.add(List.of("姓名"));
+                headHeaders.add(List.of("部门"));
+                headHeaders.add(List.of("主要领导 (25%)"));
+                headHeaders.add(List.of("分管领导 (35%)"));
+                headHeaders.add(List.of("其他中心领导均分 (15%)"));
+                headHeaders.add(List.of("部门正职互评均分 (25%)"));
+                headHeaders.add(List.of("综合得分"));
+                headHeaders.add(List.of("排名"));
+
+                List<List<Object>> headData = new ArrayList<>();
+                int idx = 1;
+                for (MonthlySummaryVO.TierSummaryRowVO hr : summary.getHeadRows()) {
+                    List<Object> row = new ArrayList<>();
+                    row.add(idx++);
+                    row.add(hr.getRealName());
+                    row.add(hr.getDepartment());
+                    row.add(hr.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(hr.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(hr.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(hr.getPeerScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(hr.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(hr.getRank());
+                    headData.add(row);
+                }
+
+                com.alibaba.excel.write.metadata.WriteSheet sheet1 = EasyExcel.writerSheet(sheetIndex++, "内设部门正职考评汇总表")
+                        .head(headHeaders)
+                        .build();
+                excelWriter.write(headData, sheet1);
+            }
+
+            // Sheet 2: 内设部门副职考评汇总表
+            if (!CollectionUtils.isEmpty(summary.getDeputyRows())) {
+                List<List<String>> deputyHeaders = new ArrayList<>();
+                deputyHeaders.add(List.of("序号"));
+                deputyHeaders.add(List.of("姓名"));
+                deputyHeaders.add(List.of("部门"));
+                deputyHeaders.add(List.of("分管领导 (35%)"));
+                deputyHeaders.add(List.of("其他中心领导均分 (20%)"));
+                deputyHeaders.add(List.of("本部门正职 (30%)"));
+                deputyHeaders.add(List.of("部门副职互评均分 (15%)"));
+                deputyHeaders.add(List.of("综合得分"));
+                deputyHeaders.add(List.of("排名"));
+
+                List<List<Object>> deputyData = new ArrayList<>();
+                int idx = 1;
+                for (MonthlySummaryVO.TierSummaryRowVO dr : summary.getDeputyRows()) {
+                    List<Object> row = new ArrayList<>();
+                    row.add(idx++);
+                    row.add(dr.getRealName());
+                    row.add(dr.getDepartment());
+                    row.add(dr.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(dr.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(dr.getDeptHeadScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(dr.getPeerScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(dr.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(dr.getRank());
+                    deputyData.add(row);
+                }
+
+                com.alibaba.excel.write.metadata.WriteSheet sheet2 = EasyExcel.writerSheet(sheetIndex++, "内设部门副职考评汇总表")
+                        .head(deputyHeaders)
+                        .build();
+                excelWriter.write(deputyData, sheet2);
+            }
+
+            // Sheet 3: 全员综合明细表
             List<List<String>> head = new ArrayList<>();
             head.add(List.of("排名"));
             head.add(List.of("姓名"));
             head.add(List.of("部门"));
             head.add(List.of("职务"));
 
-            // 1. 各指标综合得分列
             if (summary.getMetrics() != null) {
                 for (AppraisalMetric m : summary.getMetrics()) {
                     head.add(List.of(m.getMetricName() + " (" + m.getMaxScore().stripTrailingZeros().toPlainString() + "分)"));
                 }
             }
 
-            // 2. 各领导总分列
             for (MonthlySummaryVO.LeaderHeaderVO l : summary.getLeaders()) {
                 head.add(List.of(l.getRealName() + " (" + l.getWeight().stripTrailingZeros().toPlainString() + "%)"));
             }
@@ -790,7 +1089,6 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 row.add(r.getDepartment());
                 row.add(r.getPosition());
 
-                // 各指标综合得分
                 if (summary.getMetrics() != null) {
                     for (AppraisalMetric m : summary.getMetrics()) {
                         BigDecimal ms = r.getMetricAvgScores() != null ? r.getMetricAvgScores().get(m.getId()) : null;
@@ -798,7 +1096,6 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     }
                 }
 
-                // 各领导总分
                 for (MonthlySummaryVO.LeaderHeaderVO l : summary.getLeaders()) {
                     BigDecimal score = r.getLeaderScores().get(l.getLeaderUserId());
                     row.add(score != null ? score.setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
@@ -807,12 +1104,12 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 dataList.add(row);
             }
 
-            EasyExcel.write(out)
-                    .excelType(ExcelTypeEnum.XLSX)
-                    .sheet(summary.getAppraisalPeriod() + "月度绩效汇总")
+            com.alibaba.excel.write.metadata.WriteSheet sheetAll = EasyExcel.writerSheet(sheetIndex, "综合明细")
                     .head(head)
-                    .doWrite(dataList);
+                    .build();
+            excelWriter.write(dataList, sheetAll);
 
+            excelWriter.finish();
             return out.toByteArray();
         } catch (Exception e) {
             throw new BusinessException(500, "导出 Excel 失败: " + e.getMessage());

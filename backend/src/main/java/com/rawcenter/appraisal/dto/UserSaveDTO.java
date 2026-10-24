@@ -21,6 +21,12 @@ public class UserSaveDTO {
     private String department;
 
     private String position;
+    private String title;
+    private String positionCategory;
+    private Long supervisorId;
+    private String supervisorName;
+    private Long deptHeadId;
+    private String deptHeadName;
     private String email;
     private String phone;
     private Integer status; // 1: active, 0: disabled

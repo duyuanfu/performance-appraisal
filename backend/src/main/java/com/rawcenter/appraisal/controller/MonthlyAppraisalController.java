@@ -57,6 +57,25 @@ public class MonthlyAppraisalController {
         return Result.success();
     }
 
+    @DeleteMapping("/batches/{id}")
+    public Result<Void> deleteMonthlyBatch(@PathVariable Long id) {
+        checkSysAdmin();
+        monthlyAppraisalService.deleteMonthlyBatch(id);
+        return Result.success();
+    }
+
+    private void checkSysAdmin() {
+        com.rawcenter.appraisal.common.UserContext.CurrentUser u = com.rawcenter.appraisal.common.UserContext.get();
+        if (u != null && !"SYS_ADMIN".equalsIgnoreCase(u.getActiveRole()) && !"sys_admin".equalsIgnoreCase(u.getUsername())) {
+            throw new com.rawcenter.appraisal.common.BusinessException(403, "权限不足：删除批次功能仅限【系统管理员】操作");
+        }
+    }
+
+    @GetMapping("/candidate-examinees")
+    public Result<List<com.rawcenter.appraisal.vo.UserVO>> getCandidateExaminees() {
+        return Result.success(monthlyAppraisalService.listCandidateExaminees());
+    }
+
     @GetMapping("/batches/{id}/progress")
     public Result<List<com.rawcenter.appraisal.vo.EvaluatorProgressVO>> getLeaderProgress(@PathVariable Long id) {
         return Result.success(monthlyAppraisalService.getLeaderProgress(id));

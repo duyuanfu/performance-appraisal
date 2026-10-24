@@ -18,6 +18,6 @@ export function saveBatchMetricsApi(batchId: number, metrics: MetricItem[]): Pro
   return request.post(`/batches/${batchId}/metrics`, metrics);
 }
 
-export function getDefaultTemplatesApi(batchType: 'MONTHLY' | 'ANNUAL_PROJECT'): Promise<MetricItem[]> {
+export function getDefaultTemplatesApi(batchType: string): Promise<MetricItem[]> {
   return request.get('/metrics/templates', { params: { batchType } });
 }

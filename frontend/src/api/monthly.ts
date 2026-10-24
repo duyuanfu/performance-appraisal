@@ -47,9 +47,26 @@ export interface MonthlyLeaderScoringVO {
     realName: string;
     department: string;
     position: string;
+    positionCategory?: string;
+    evaluatorRelationship?: string;
     metricScores: Record<number, number>;
     totalScore: number;
   }[];
+}
+
+export interface TierSummaryRowVO {
+  examineeUserId: number;
+  realName: string;
+  department: string;
+  position: string;
+  positionCategory?: string;
+  primaryLeaderScore: number;
+  supervisorLeaderScore: number;
+  otherLeaderScore: number;
+  deptHeadScore: number;
+  peerScore: number;
+  compositeScore: number;
+  rank: number;
 }
 
 export interface MonthlySummaryVO {
@@ -75,6 +92,8 @@ export interface MonthlySummaryVO {
     compositeScore: number;
     rank: number;
   }[];
+  headRows?: TierSummaryRowVO[];
+  deputyRows?: TierSummaryRowVO[];
 }
 
 export interface ExamineePersonalResultVO {
@@ -135,6 +154,14 @@ export function publishMonthlyBatchApi(id: number): Promise<void> {
 
 export function completeMonthlyBatchApi(id: number): Promise<void> {
   return request.put(`/monthly/batches/${id}/complete`);
+}
+
+export function deleteMonthlyBatchApi(id: number): Promise<void> {
+  return request.delete(`/monthly/batches/${id}`);
+}
+
+export function getCandidateExamineesApi(): Promise<any[]> {
+  return request.get('/monthly/candidate-examinees');
 }
 
 export function getLeaderScoringDataApi(batchId: number): Promise<MonthlyLeaderScoringVO> {

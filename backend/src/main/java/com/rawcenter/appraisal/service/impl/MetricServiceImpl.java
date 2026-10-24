@@ -73,10 +73,19 @@ public class MetricServiceImpl implements MetricService {
 
     @Override
     public List<MetricDTO> getDefaultTemplates(String batchType) {
-        List<DefaultMetricsProperties.MetricConfigItem> configItems =
-                "MONTHLY".equalsIgnoreCase(batchType)
-                        ? defaultMetricsProperties.getMonthly()
-                        : defaultMetricsProperties.getAnnualProject();
+        List<DefaultMetricsProperties.MetricConfigItem> configItems = null;
+        if ("MONTHLY".equalsIgnoreCase(batchType)) {
+            configItems = defaultMetricsProperties.getMonthly();
+        } else if ("TARGET_PROJECT".equalsIgnoreCase(batchType)) {
+            configItems = !CollectionUtils.isEmpty(defaultMetricsProperties.getTargetProject())
+                    ? defaultMetricsProperties.getTargetProject()
+                    : defaultMetricsProperties.getAnnualProject();
+        } else if ("SPECIAL_INNOVATION".equalsIgnoreCase(batchType)) {
+            configItems = defaultMetricsProperties.getSpecialInnovation();
+        } else {
+            // ANNUAL_PROJECT or others
+            configItems = defaultMetricsProperties.getAnnualProject();
+        }
 
         if (!CollectionUtils.isEmpty(configItems)) {
             return configItems.stream().map(item -> MetricDTO.builder()
@@ -91,18 +100,18 @@ public class MetricServiceImpl implements MetricService {
         // 默认保底兜底模板（在未配置参数文件时生效）
         List<MetricDTO> templates = new ArrayList<>();
         if ("MONTHLY".equalsIgnoreCase(batchType)) {
-            templates.add(MetricDTO.builder().metricName("工作能力").metricDesc("专业业务技能与履职综合能力").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("25.0000")).sortOrder(1).build());
-            templates.add(MetricDTO.builder().metricName("工作质量").metricDesc("工作成果质量、合规与标准执行").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("25.0000")).sortOrder(2).build());
-            templates.add(MetricDTO.builder().metricName("工作态度").metricDesc("履职态度、敬业精神与团队协作意识").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(3).build());
-            templates.add(MetricDTO.builder().metricName("工作效率").metricDesc("任务推进时效性与响应解决速度").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("15.0000")).sortOrder(4).build());
-            templates.add(MetricDTO.builder().metricName("工作业务量").metricDesc("承担重点工作负荷及实际业务产出量").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("15.0000")).sortOrder(5).build());
+            templates.add(MetricDTO.builder().metricName("职责履行").metricDesc("岗位职责履行与工作要求执行情况").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("30.0000")).sortOrder(1).build());
+            templates.add(MetricDTO.builder().metricName("主要业绩").metricDesc("月度重点业绩产出与实际工作成效").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("50.0000")).sortOrder(2).build());
+            templates.add(MetricDTO.builder().metricName("团队建设").metricDesc("团队协作配合、作风建设与组织执行力").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(3).build());
+        } else if ("SPECIAL_INNOVATION".equalsIgnoreCase(batchType)) {
+            templates.add(MetricDTO.builder().metricName("特色亮点").metricDesc("项目创新性、特色做法与突破亮点").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("30.0000")).sortOrder(1).build());
+            templates.add(MetricDTO.builder().metricName("产生质效").metricDesc("实际业务成效、管理提升或经济技术效益").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("50.0000")).sortOrder(2).build());
+            templates.add(MetricDTO.builder().metricName("难度系数").metricDesc("技术攻坚难度、协调复杂度与创新风险度").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(3).build());
         } else {
-            // ANNUAL_PROJECT
-            templates.add(MetricDTO.builder().metricName("完成度").metricDesc("项目目标达成与实际里程碑交付情况").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(1).build());
-            templates.add(MetricDTO.builder().metricName("质效").metricDesc("项目产出质量标准与业务赋能效益").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(2).build());
-            templates.add(MetricDTO.builder().metricName("协作").metricDesc("跨部门横向协同配合与资源整合度").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(3).build());
-            templates.add(MetricDTO.builder().metricName("效率").metricDesc("进度推进节奏与关键节点把控效率").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(4).build());
-            templates.add(MetricDTO.builder().metricName("合规").metricDesc("合规管理、规范运作与风险把控").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(5).build());
+            // TARGET_PROJECT & ANNUAL_PROJECT
+            templates.add(MetricDTO.builder().metricName("完成度").metricDesc("项目目标达成与实际任务完成程度").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("30.0000")).sortOrder(1).build());
+            templates.add(MetricDTO.builder().metricName("完成质量").metricDesc("项目产出质量、标准达成及业务赋能实效").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("50.0000")).sortOrder(2).build());
+            templates.add(MetricDTO.builder().metricName("完成时效性").metricDesc("推进节奏、时间节点把控及完成时效").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(3).build());
         }
         return templates;
     }

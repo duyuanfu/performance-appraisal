@@ -32,15 +32,21 @@ const { Header, Content, Sider } = Layout;
 const { Text } = Typography;
 
 const ROLE_NAME_MAP: Record<string, string> = {
-  ADMIN: '系统管理员',
+  SYS_ADMIN: '系统管理员',
+  ADMIN: '业务管理员',
   LEADER: '中心领导',
+  DEPT_HEAD: '部门正职',
+  DEPT_DEPUTY: '部门副职',
   EXPERT: '评审专家',
-  EMPLOYEE: '被考核人员',
+  EMPLOYEE: '普通职工',
 };
 
 const ROLE_COLOR_MAP: Record<string, string> = {
+  SYS_ADMIN: 'magenta',
   ADMIN: 'red',
   LEADER: 'blue',
+  DEPT_HEAD: 'cyan',
+  DEPT_DEPUTY: 'geekblue',
   EXPERT: 'purple',
   EMPLOYEE: 'green',
 };
@@ -58,6 +64,29 @@ export const MainLayout: React.FC = () => {
   // Dynamic menu items based on active role
   const getMenuItems = () => {
     switch (activeRole) {
+      case 'SYS_ADMIN':
+        return [
+          {
+            key: '/users',
+            icon: <TeamOutlined />,
+            label: '账号与组织架构管理',
+          },
+          {
+            key: '/monthly-admin',
+            icon: <AuditOutlined />,
+            label: '月度绩效管理与清理',
+          },
+          {
+            key: '/annual-admin',
+            icon: <ProjectOutlined />,
+            label: '目标绩效任务管理',
+          },
+          {
+            key: '/special-innovation-admin',
+            icon: <TrophyOutlined />,
+            label: '专项与创新任务管理',
+          },
+        ];
       case 'ADMIN':
         return [
           {
@@ -68,12 +97,12 @@ export const MainLayout: React.FC = () => {
           {
             key: '/annual-admin',
             icon: <ProjectOutlined />,
-            label: '年度项目评审管理',
+            label: '目标绩效任务评审',
           },
           {
-            key: '/users',
-            icon: <TeamOutlined />,
-            label: '用户账号管理',
+            key: '/special-innovation-admin',
+            icon: <TrophyOutlined />,
+            label: '专项与创新任务评审',
           },
         ];
       case 'LEADER':
@@ -82,6 +111,42 @@ export const MainLayout: React.FC = () => {
             key: '/leader-scoring',
             icon: <CheckCircleOutlined />,
             label: '月度绩效打分工作台',
+          },
+          {
+            key: '/expert-evaluation',
+            icon: <ProjectOutlined />,
+            label: '项目评审打分工作台',
+          },
+        ];
+      case 'DEPT_HEAD':
+        return [
+          {
+            key: '/leader-scoring',
+            icon: <CheckCircleOutlined />,
+            label: '部门正职月度考评互评',
+          },
+          {
+            key: '/expert-evaluation',
+            icon: <ProjectOutlined />,
+            label: '项目评审打分工作台',
+          },
+          {
+            key: '/my-performance',
+            icon: <TrophyOutlined />,
+            label: '我的月度考核结果',
+          },
+        ];
+      case 'DEPT_DEPUTY':
+        return [
+          {
+            key: '/leader-scoring',
+            icon: <CheckCircleOutlined />,
+            label: '部门副职月度考评互评',
+          },
+          {
+            key: '/my-performance',
+            icon: <TrophyOutlined />,
+            label: '我的月度考核结果',
           },
         ];
       case 'EXPERT':
@@ -117,8 +182,11 @@ export const MainLayout: React.FC = () => {
     ),
     onClick: () => {
       switchRole(r.roleCode);
-      if (r.roleCode === 'ADMIN') navigate('/monthly-admin');
+      if (r.roleCode === 'SYS_ADMIN') navigate('/users');
+      else if (r.roleCode === 'ADMIN') navigate('/monthly-admin');
       else if (r.roleCode === 'LEADER') navigate('/leader-scoring');
+      else if (r.roleCode === 'DEPT_HEAD') navigate('/leader-scoring');
+      else if (r.roleCode === 'DEPT_DEPUTY') navigate('/leader-scoring');
       else if (r.roleCode === 'EXPERT') navigate('/expert-evaluation');
       else if (r.roleCode === 'EMPLOYEE') navigate('/my-performance');
     },

@@ -453,4 +453,205 @@ public class AppraisalFlowTest {
         Assertions.assertNotNull(excelBytes);
         Assertions.assertTrue(excelBytes.length > 0);
     }
+
+    @Test
+    public void testV2MonthlyTieredHeadAndDeputyAppraisal() {
+        // 1. Create monthly batch
+        MonthlyBatchSaveDTO dto = new MonthlyBatchSaveDTO();
+        dto.setBatchName("2026年11月V2分层考评测试批次");
+        dto.setAppraisalPeriod("2026-11");
+        MonthlyBatchSaveDTO.LeaderWeightDTO l1 = new MonthlyBatchSaveDTO.LeaderWeightDTO();
+        l1.setLeaderUserId(11L); // 陈剑 (PRIMARY_LEADER)
+        l1.setWeight(new BigDecimal("50.0000"));
+        MonthlyBatchSaveDTO.LeaderWeightDTO l2 = new MonthlyBatchSaveDTO.LeaderWeightDTO();
+        l2.setLeaderUserId(12L); // 施文萃 (CENTER_LEADER, 分管办公室)
+        l2.setWeight(new BigDecimal("50.0000"));
+        dto.setLeaders(Arrays.asList(l1, l2));
+
+        // Examinees: 王昆淼 (17L, DEPT_HEAD), 田阳阳 (28L, DEPT_DEPUTY, 直属王昆淼, 分管施文萃)
+        dto.setExamineeUserIds(Arrays.asList(17L, 28L));
+        List<MetricDTO> metrics = metricService.getDefaultTemplates("MONTHLY");
+        dto.setMetrics(metrics);
+
+        UserContext.set(UserContext.CurrentUser.builder().userId(1L).username("admin").activeRole("ADMIN").build());
+        monthlyService.saveMonthlyBatch(dto);
+
+        List<MonthlyBatchVO> batches = monthlyService.listMonthlyBatches(null, "2026年11月V2分层考评测试批次");
+        Assertions.assertFalse(batches.isEmpty());
+        Long batchId = batches.get(0).getId();
+
+        monthlyService.publishMonthlyBatch(batchId);
+        List<AppraisalMetric> savedMonthlyMetrics = metricService.listMetricsByBatchId(batchId);
+
+        // 2. Score as 陈剑 (PRIMARY_LEADER): 给王昆淼 100 分
+        UserContext.set(UserContext.CurrentUser.builder().userId(11L).username("13908866003").activeRole("LEADER").build());
+        MonthlyScoreSubmitDTO s1 = new MonthlyScoreSubmitDTO();
+        s1.setBatchId(batchId);
+        s1.setIsSubmit(true);
+        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item1 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
+        item1.setExamineeUserId(17L);
+        Map<Long, BigDecimal> mScores1 = new HashMap<>();
+        for (AppraisalMetric m : savedMonthlyMetrics) {
+            mScores1.put(m.getId(), new BigDecimal("100.0000"));
+        }
+        item1.setMetricScores(mScores1);
+        s1.setItems(Collections.singletonList(item1));
+        monthlyService.saveLeaderScores(s1);
+
+        // 3. Score as 施文萃 (CENTER_LEADER, 王昆淼的分管领导, 田阳阳的分管领导)
+        UserContext.set(UserContext.CurrentUser.builder().userId(12L).username("13888952359").activeRole("LEADER").build());
+        MonthlyScoreSubmitDTO s2 = new MonthlyScoreSubmitDTO();
+        s2.setBatchId(batchId);
+        s2.setIsSubmit(true);
+        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item2 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
+        item2.setExamineeUserId(17L);
+        item2.setMetricScores(mScores1); // 100分
+
+        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item3 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
+        item3.setExamineeUserId(28L);
+        item3.setMetricScores(mScores1); // 100分
+        s2.setItems(Arrays.asList(item2, item3));
+        monthlyService.saveLeaderScores(s2);
+
+        // 4. Check summary
+        UserContext.set(UserContext.CurrentUser.builder().userId(1L).username("admin").activeRole("ADMIN").build());
+        MonthlySummaryVO summary = monthlyService.getMonthlyBatchSummary(batchId);
+        Assertions.assertNotNull(summary);
+        Assertions.assertFalse(summary.getHeadRows().isEmpty());
+        Assertions.assertFalse(summary.getDeputyRows().isEmpty());
+
+        // 王昆淼 (正职): 主要领导100分(25%) + 分管领导100分(35%) + 其他领导0 + 互评0 = 60.0000
+        MonthlySummaryVO.TierSummaryRowVO headRow = summary.getHeadRows().stream()
+                .filter(r -> r.getExamineeUserId().equals(17L)).findFirst().orElseThrow();
+        Assertions.assertEquals(new BigDecimal("100.0000"), headRow.getPrimaryLeaderScore());
+        Assertions.assertEquals(new BigDecimal("100.0000"), headRow.getSupervisorLeaderScore());
+        Assertions.assertEquals(new BigDecimal("60.0000"), headRow.getCompositeScore());
+
+        // 田阳阳 (副职): 分管领导100分(35%) + 其他0 + 本部门正职0 + 副职互评0 = 35.0000
+        MonthlySummaryVO.TierSummaryRowVO deputyRow = summary.getDeputyRows().stream()
+                .filter(r -> r.getExamineeUserId().equals(28L)).findFirst().orElseThrow();
+        Assertions.assertEquals(new BigDecimal("100.0000"), deputyRow.getSupervisorLeaderScore());
+        Assertions.assertEquals(new BigDecimal("35.0000"), deputyRow.getCompositeScore());
+
+        // 5. Test Multi-sheet export
+        byte[] excelBytes = monthlyService.exportMonthlyBatchExcel(batchId);
+        Assertions.assertNotNull(excelBytes);
+        Assertions.assertTrue(excelBytes.length > 0);
+    }
+
+    @Test
+    public void testV2SpecialInnovationAndAwardTierRating() {
+        // 1. Create special innovation batch
+        ProjectBatchSaveDTO batchDto = new ProjectBatchSaveDTO();
+        batchDto.setBatchName("2026年度专项与创新任务评审测试");
+        batchDto.setBatchType("SPECIAL_INNOVATION");
+        batchDto.setCategory("ALL");
+        batchDto.setAppraisalPeriod("2026");
+        ProjectBatchSaveDTO.ExpertWeightDTO ew1 = new ProjectBatchSaveDTO.ExpertWeightDTO();
+        ew1.setExpertUserId(4L);
+        ew1.setWeight(new BigDecimal("100.0000"));
+        batchDto.setExperts(Collections.singletonList(ew1));
+        List<MetricDTO> metrics = metricService.getDefaultTemplates("SPECIAL_INNOVATION");
+        batchDto.setMetrics(metrics);
+
+        UserContext.set(UserContext.CurrentUser.builder().userId(1L).username("admin").activeRole("ADMIN").build());
+        projectService.saveProjectBatch(batchDto);
+
+        List<AppraisalBatch> batches = projectService.listProjectBatches("SPECIAL_INNOVATION", null, "2026年度专项与创新任务评审测试");
+        Assertions.assertFalse(batches.isEmpty());
+        Long batchId = batches.get(0).getId();
+
+        // 2. Add projects with quota validation
+        ProjectItemSaveDTO p1 = new ProjectItemSaveDTO();
+        p1.setBatchId(batchId);
+        p1.setProjectCode("SP-01");
+        p1.setProjectName("数字化配方智能算法优化");
+        p1.setDepartment("技术开发部");
+        p1.setCategory("BUSINESS");
+        p1.setOwnerName("焦部长");
+        projectService.saveProjectItem(p1);
+
+        ProjectItemSaveDTO p2 = new ProjectItemSaveDTO();
+        p2.setBatchId(batchId);
+        p2.setProjectCode("SP-02");
+        p2.setProjectName("烟叶醇化智能温湿度调控");
+        p2.setDepartment("技术开发部");
+        p2.setCategory("BUSINESS");
+        p2.setOwnerName("朱副部长");
+        projectService.saveProjectItem(p2);
+
+        ProjectItemSaveDTO p3 = new ProjectItemSaveDTO();
+        p3.setBatchId(batchId);
+        p3.setProjectCode("SP-03");
+        p3.setProjectName("原料近红外快速无损检测");
+        p3.setDepartment("技术开发部");
+        p3.setCategory("BUSINESS");
+        p3.setOwnerName("韩副部长");
+        projectService.saveProjectItem(p3);
+
+        // Test Quota: 4th BUSINESS project for same department MUST be rejected
+        ProjectItemSaveDTO p4 = new ProjectItemSaveDTO();
+        p4.setBatchId(batchId);
+        p4.setProjectCode("SP-04");
+        p4.setProjectName("超额项目");
+        p4.setDepartment("技术开发部");
+        p4.setCategory("BUSINESS");
+        p4.setOwnerName("张专员");
+        Assertions.assertThrows(BusinessException.class, () -> projectService.saveProjectItem(p4));
+
+        // 3. Publish and Score
+        projectService.publishProjectBatch(batchId);
+
+        List<ProjectItemVO> items = projectService.listProjectItems(batchId);
+        Assertions.assertEquals(3, items.size());
+
+        // Score as expert
+        UserContext.set(UserContext.CurrentUser.builder().userId(4L).username("expert_wang").activeRole("EXPERT").build());
+        List<AppraisalMetric> savedSpecialMetrics = metricService.listMetricsByBatchId(batchId);
+        ExpertScoreSubmitDTO s = new ExpertScoreSubmitDTO();
+        s.setBatchId(batchId);
+        s.setIsSubmit(true);
+
+        ExpertScoreSubmitDTO.ProjectScoreItemDTO pi1 = new ExpertScoreSubmitDTO.ProjectScoreItemDTO();
+        pi1.setProjectId(items.get(0).getId());
+        Map<Long, BigDecimal> m1 = new HashMap<>();
+        for (AppraisalMetric m : savedSpecialMetrics) m1.put(m.getId(), new BigDecimal("96.0000"));
+        pi1.setMetricScores(m1);
+
+        ExpertScoreSubmitDTO.ProjectScoreItemDTO pi2 = new ExpertScoreSubmitDTO.ProjectScoreItemDTO();
+        pi2.setProjectId(items.get(1).getId());
+        Map<Long, BigDecimal> m2 = new HashMap<>();
+        for (AppraisalMetric m : savedSpecialMetrics) m2.put(m.getId(), new BigDecimal("85.0000"));
+        pi2.setMetricScores(m2);
+
+        ExpertScoreSubmitDTO.ProjectScoreItemDTO pi3 = new ExpertScoreSubmitDTO.ProjectScoreItemDTO();
+        pi3.setProjectId(items.get(2).getId());
+        Map<Long, BigDecimal> m3 = new HashMap<>();
+        for (AppraisalMetric m : savedSpecialMetrics) m3.put(m.getId(), new BigDecimal("72.0000"));
+        pi3.setMetricScores(m3);
+
+        s.setItems(Arrays.asList(pi1, pi2, pi3));
+        projectService.saveExpertScores(s);
+
+        // 4. Summary and award tier verification
+        UserContext.set(UserContext.CurrentUser.builder().userId(1L).username("admin").activeRole("ADMIN").build());
+        AnnualProjectSummaryVO summary = projectService.getProjectSummary(batchId);
+        Assertions.assertNotNull(summary);
+        Assertions.assertEquals(3, summary.getRows().size());
+
+        AnnualProjectSummaryVO.ProjectSummaryRowVO topRow = summary.getRows().get(0);
+        Assertions.assertEquals(new BigDecimal("96.0000"), topRow.getCompositeScore());
+        Assertions.assertEquals("SPECIAL", topRow.getAwardTier());
+        Assertions.assertEquals("特等奖", topRow.getAwardTierName());
+
+        AnnualProjectSummaryVO.ProjectSummaryRowVO secondRow = summary.getRows().get(1);
+        Assertions.assertEquals(new BigDecimal("85.0000"), secondRow.getCompositeScore());
+        Assertions.assertEquals("SECOND", secondRow.getAwardTier());
+        Assertions.assertEquals("二等奖", secondRow.getAwardTierName());
+
+        // 5. Test Excel Export
+        byte[] excelBytes = projectService.exportProjectSummaryExcel(batchId);
+        Assertions.assertNotNull(excelBytes);
+        Assertions.assertTrue(excelBytes.length > 0);
+    }
 }

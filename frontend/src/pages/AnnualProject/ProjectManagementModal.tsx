@@ -10,6 +10,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Select,
   Typography,
   Tooltip,
 } from 'antd';
@@ -78,6 +79,8 @@ export const ProjectManagementModal: React.FC<Props> = ({
         projectCode: item.projectCode,
         projectName: item.projectName,
         ownerName: item.ownerName,
+        department: item.department,
+        category: item.category || 'BUSINESS',
         sortOrder: item.sortOrder,
       });
     } else {
@@ -86,6 +89,8 @@ export const ProjectManagementModal: React.FC<Props> = ({
         projectCode: String(projects.length + 1),
         projectName: '',
         ownerName: '',
+        department: undefined,
+        category: 'BUSINESS',
         sortOrder: projects.length + 1,
       });
     }
@@ -102,6 +107,8 @@ export const ProjectManagementModal: React.FC<Props> = ({
         projectCode: values.projectCode,
         projectName: values.projectName,
         ownerName: values.ownerName,
+        department: values.department,
+        category: values.category,
         sortOrder: values.sortOrder,
       };
 
@@ -141,24 +148,56 @@ export const ProjectManagementModal: React.FC<Props> = ({
     return false; // Prevent auto upload by antd
   };
 
+  const DEPARTMENTS = [
+    '办公室',
+    '政工部',
+    '纪检监察部（审计办）',
+    '财务管理部',
+    '规范内管部',
+    '计划管理部',
+    '采购调拨部',
+    '技术开发部',
+    '复烤管理部',
+    '质量和基地管理部',
+    '样品管理部',
+  ];
+
   const columns = [
     {
       title: '项目序号/编号',
       dataIndex: 'projectCode',
       key: 'projectCode',
-      width: 130,
+      width: 110,
     },
     {
       title: '项目名称',
       dataIndex: 'projectName',
       key: 'projectName',
-      width: 220,
+      width: 200,
+    },
+    {
+      title: '申报部门',
+      dataIndex: 'department',
+      key: 'department',
+      width: 140,
+      render: (d: string) => d || '-',
+    },
+    {
+      title: '申报类别',
+      dataIndex: 'category',
+      key: 'category',
+      width: 90,
+      render: (c: string) => (
+        <Tag color={c === 'MANAGEMENT' ? 'purple' : 'cyan'}>
+          {c === 'MANAGEMENT' ? '管理类' : '业务类'}
+        </Tag>
+      ),
     },
     {
       title: '项目负责人',
       dataIndex: 'ownerName',
       key: 'ownerName',
-      width: 130,
+      width: 110,
     },
     {
       title: '申报材料 (PDF)',
@@ -338,6 +377,31 @@ export const ProjectManagementModal: React.FC<Props> = ({
         destroyOnClose
       >
         <Form form={form} layout="vertical">
+          <Form.Item
+            name="department"
+            label="申报部门"
+            rules={[{ required: true, message: '请选择申报部门' }]}
+          >
+            <Select placeholder="选择申报部门">
+              {DEPARTMENTS.map((d) => (
+                <Select.Option key={d} value={d}>
+                  {d}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="category"
+            label="申报类别"
+            rules={[{ required: true, message: '请选择申报类别' }]}
+          >
+            <Select placeholder="选择申报类别">
+              <Select.Option value="BUSINESS">业务类（重点任务/攻关项目，每部门≤3项）</Select.Option>
+              <Select.Option value="MANAGEMENT">管理类（综合/规范/党群管理，每部门≤2项）</Select.Option>
+            </Select>
+          </Form.Item>
+
           <Form.Item
             name="projectCode"
             label="项目序号 / 编号"

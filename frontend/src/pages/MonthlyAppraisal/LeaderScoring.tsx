@@ -195,6 +195,20 @@ export const LeaderScoringPage: React.FC = () => {
       key: 'position',
       width: 120,
     },
+    {
+      title: '考评关系',
+      dataIndex: 'evaluatorRelationship',
+      key: 'evaluatorRelationship',
+      width: 130,
+      render: (rel: string) => {
+        let color = 'blue';
+        if (rel === '中心主要领导') color = 'volcano';
+        else if (rel === '分管领导') color = 'green';
+        else if (rel === '本部门正职') color = 'purple';
+        else if (rel && rel.includes('互评')) color = 'cyan';
+        return <Tag color={color}>{rel || '考核人'}</Tag>;
+      },
+    },
     ...(scoringData?.metrics || []).map((m) => ({
       title: (
         <div>

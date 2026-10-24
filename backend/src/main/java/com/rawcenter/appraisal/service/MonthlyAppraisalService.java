@@ -16,6 +16,7 @@ public interface MonthlyAppraisalService {
     void saveMonthlyBatch(MonthlyBatchSaveDTO dto);
     void publishMonthlyBatch(Long batchId);
     void completeMonthlyBatch(Long batchId);
+    void deleteMonthlyBatch(Long batchId);
     MonthlyLeaderScoringVO getLeaderScoringData(Long batchId);
     void saveLeaderScores(MonthlyScoreSubmitDTO dto);
     void withdrawLeaderScores(Long batchId);
@@ -24,4 +25,5 @@ public interface MonthlyAppraisalService {
     MonthlySummaryVO getMonthlyBatchSummary(Long batchId);
     ExamineePersonalResultVO getExamineePersonalResult(Long batchId);
     byte[] exportMonthlyBatchExcel(Long batchId);
+    List<com.rawcenter.appraisal.vo.UserVO> listCandidateExaminees();
 }

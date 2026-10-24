@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Table, Button, Space, Tag, Typography, message, Card } from 'antd';
+import { Modal, Table, Button, Space, Tag, Typography, message, Card, Tabs } from 'antd';
 import {
   DownloadOutlined,
   ReloadOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  InfoCircleOutlined,
 } from '@ant-design/icons';
 import request from '../../api/request';
-import { getMonthlyBatchSummaryApi, MonthlySummaryVO } from '../../api/monthly';
+import { getMonthlyBatchSummaryApi, MonthlySummaryVO, TierSummaryRowVO } from '../../api/monthly';
 
 const { Text } = Typography;
 
@@ -58,7 +57,7 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      message.success('Excel 报表导出成功');
+      message.success('Excel 报表导出成功（包含正职/副职双Sheet）');
     } catch (e: any) {
       message.error(e.message || '导出报表失败');
     } finally {
@@ -66,89 +65,150 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
     }
   };
 
-  // Expandable row rendering showing each leader's exact score on each metric
-  const expandedRowRender = (record: any) => {
-    const leaderMetricColumns = [
-      {
-        title: '考核指标项',
-        dataIndex: 'metricName',
-        key: 'metricName',
-        width: 150,
-      },
-      {
-        title: '满分/权重',
-        key: 'weight',
-        width: 130,
-        render: (_: any, m: any) => `${m.maxScore}分 (${Number(m.weight).toFixed(2)}%)`,
-      },
-      ...(data?.leaders || []).map((l) => ({
-        title: `${l.realName}评分 (${Number(l.weight).toFixed(2)}%)`,
-        key: `leader_score_${l.leaderUserId}`,
-        render: (_: any, m: any) => {
-          const score = record.leaderMetricScores?.[`${l.leaderUserId}_${m.id}`];
-          return score !== undefined ? (
-            <Text strong style={{ color: '#262626' }}>
-              {Number(score).toFixed(4)}
-            </Text>
-          ) : (
-            <Text type="secondary">-</Text>
-          );
-        },
-      })),
-      {
-        title: '该项综合加权得分',
-        key: 'metricAvg',
-        width: 150,
-        render: (_: any, m: any) => {
-          const score = record.metricAvgScores?.[m.id];
-          return (
-            <Text strong style={{ color: '#1890ff' }}>
-              {score !== undefined ? Number(score).toFixed(4) : '-'}
-            </Text>
-          );
-        },
-      },
-    ];
-
-    return (
-      <Card size="small" title={<Text strong>领导单项指标打分明细：</Text>} style={{ margin: '8px 0' }}>
-        <Table
-          rowKey="id"
-          columns={leaderMetricColumns}
-          dataSource={data?.metrics || []}
-          pagination={false}
-          size="small"
-          bordered
-        />
-      </Card>
-    );
-  };
-
-  const dynamicColumns = [
+  // 1. 部门正职汇总列
+  const headColumns = [
     {
       title: '排名',
       dataIndex: 'rank',
       key: 'rank',
       width: 70,
-      fixed: 'left' as const,
-      render: (rank: number) => {
-        const color =
-          rank === 1 ? '#f5222d' : rank === 2 ? '#fa8c16' : rank === 3 ? '#faad14' : '#595959';
-        return <Tag color={color} style={{ fontWeight: 'bold' }}>{rank}</Tag>;
-      },
+      render: (r: number) => <Tag color={r <= 3 ? 'volcano' : 'default'} style={{ fontWeight: 'bold' }}>{r}</Tag>,
     },
     {
       title: '姓名',
       dataIndex: 'realName',
       key: 'realName',
       width: 110,
-      fixed: 'left' as const,
     },
     {
       title: '部门',
       dataIndex: 'department',
       key: 'department',
+      width: 160,
+    },
+    {
+      title: '主要领导 (25%)',
+      dataIndex: 'primaryLeaderScore',
+      key: 'primaryLeaderScore',
       width: 130,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '分管领导 (35%)',
+      dataIndex: 'supervisorLeaderScore',
+      key: 'supervisorLeaderScore',
+      width: 130,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '其他中心领导均分 (15%)',
+      dataIndex: 'otherLeaderScore',
+      key: 'otherLeaderScore',
+      width: 170,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '部门正职互评均分 (25%)',
+      dataIndex: 'peerScore',
+      key: 'peerScore',
+      width: 170,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '综合得分',
+      dataIndex: 'compositeScore',
+      key: 'compositeScore',
+      width: 130,
+      render: (s: number) => (
+        <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
+          {Number(s).toFixed(4)}
+        </Text>
+      ),
+    },
+  ];
+
+  // 2. 部门副职汇总列
+  const deputyColumns = [
+    {
+      title: '排名',
+      dataIndex: 'rank',
+      key: 'rank',
+      width: 70,
+      render: (r: number) => <Tag color={r <= 3 ? 'volcano' : 'default'} style={{ fontWeight: 'bold' }}>{r}</Tag>,
+    },
+    {
+      title: '姓名',
+      dataIndex: 'realName',
+      key: 'realName',
+      width: 110,
+    },
+    {
+      title: '部门',
+      dataIndex: 'department',
+      key: 'department',
+      width: 160,
+    },
+    {
+      title: '分管领导 (35%)',
+      dataIndex: 'supervisorLeaderScore',
+      key: 'supervisorLeaderScore',
+      width: 130,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '其他中心领导均分 (20%)',
+      dataIndex: 'otherLeaderScore',
+      key: 'otherLeaderScore',
+      width: 170,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '本部门正职 (30%)',
+      dataIndex: 'deptHeadScore',
+      key: 'deptHeadScore',
+      width: 140,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '部门副职互评均分 (15%)',
+      dataIndex: 'peerScore',
+      key: 'peerScore',
+      width: 170,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '综合得分',
+      dataIndex: 'compositeScore',
+      key: 'compositeScore',
+      width: 130,
+      render: (s: number) => (
+        <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
+          {Number(s).toFixed(4)}
+        </Text>
+      ),
+    },
+  ];
+
+  // 3. 全员明细列
+  const detailColumns = [
+    {
+      title: '排名',
+      dataIndex: 'rank',
+      key: 'rank',
+      width: 70,
+      render: (rank: number) => <Tag color="blue" style={{ fontWeight: 'bold' }}>{rank}</Tag>,
+    },
+    {
+      title: '姓名',
+      dataIndex: 'realName',
+      key: 'realName',
+      width: 110,
+    },
+    {
+      title: '部门',
+      dataIndex: 'department',
+      key: 'department',
+      width: 150,
     },
     {
       title: '职务',
@@ -156,46 +216,72 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
       key: 'position',
       width: 110,
     },
-    // Metrics composite scores columns
     ...(data?.metrics || []).map((m: any) => ({
       title: `${m.metricName} (${Number(m.weight).toFixed(0)}%)`,
       key: `metric_${m.id}`,
       width: 130,
       render: (_: any, record: any) => {
         const score = record.metricAvgScores?.[m.id!];
-        return score !== undefined ? (
-          <span>{Number(score).toFixed(4)}</span>
-        ) : (
-          <Text type="secondary">-</Text>
-        );
-      },
-    })),
-    // Leaders total scores columns
-    ...(data?.leaders || []).map((l) => ({
-      title: `${l.realName}总分 (${Number(l.weight).toFixed(2)}%)`,
-      key: `leader_${l.leaderUserId}`,
-      width: 140,
-      render: (_: any, record: any) => {
-        const score = record.leaderScores?.[l.leaderUserId];
-        return score !== undefined ? (
-          <Text strong style={{ color: '#595959' }}>
-            {Number(score).toFixed(4)}
-          </Text>
-        ) : (
-          <Text type="secondary">-</Text>
-        );
+        return score !== undefined ? <span>{Number(score).toFixed(4)}</span> : <Text type="secondary">-</Text>;
       },
     })),
     {
-      title: '综合总分 (加权)',
+      title: '综合得分',
       dataIndex: 'compositeScore',
       key: 'compositeScore',
-      width: 150,
-      fixed: 'right' as const,
+      width: 130,
       render: (score: number) => (
         <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
           {Number(score).toFixed(4)}
         </Text>
+      ),
+    },
+  ];
+
+  const tabItems = [
+    {
+      key: 'head',
+      label: `内设部门正职考评汇总表 (${data?.headRows?.length || 0}人)`,
+      children: (
+        <Table
+          rowKey="examineeUserId"
+          columns={headColumns}
+          dataSource={data?.headRows || []}
+          loading={loading}
+          pagination={false}
+          size="middle"
+          bordered
+        />
+      ),
+    },
+    {
+      key: 'deputy',
+      label: `内设部门副职考评汇总表 (${data?.deputyRows?.length || 0}人)`,
+      children: (
+        <Table
+          rowKey="examineeUserId"
+          columns={deputyColumns}
+          dataSource={data?.deputyRows || []}
+          loading={loading}
+          pagination={false}
+          size="middle"
+          bordered
+        />
+      ),
+    },
+    {
+      key: 'all',
+      label: `全员指标综合打分明细 (${data?.rows?.length || 0}人)`,
+      children: (
+        <Table
+          rowKey="examineeUserId"
+          columns={detailColumns}
+          dataSource={data?.rows || []}
+          loading={loading}
+          pagination={false}
+          size="middle"
+          bordered
+        />
       ),
     },
   ];
@@ -228,44 +314,25 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
           关闭
         </Button>,
       ]}
-      width={1180}
+      width={1200}
       destroyOnClose
     >
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <Text strong style={{ marginRight: 12 }}>评分领导提交进度：</Text>
-          <Space wrap>
-            {data?.leaders.map((l) => (
-              <Tag
-                key={l.leaderUserId}
-                icon={l.submitted ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
-                color={l.submitted ? 'success' : 'warning'}
-              >
-                {l.realName} (权重 {Number(l.weight).toFixed(2)}%)：{l.submitted ? '已提交' : '未提交/草稿'}
-              </Tag>
-            ))}
-          </Space>
-        </div>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          <InfoCircleOutlined style={{ marginRight: 4 }} />
-          点击表格行左侧展开图标 [+] 可查看各领导对该员工的具体单项指标打分明细
-        </Text>
+      <div style={{ marginBottom: 16 }}>
+        <Text strong style={{ marginRight: 12 }}>考评提交进度：</Text>
+        <Space wrap>
+          {data?.leaders.map((l) => (
+            <Tag
+              key={l.leaderUserId}
+              icon={l.submitted ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
+              color={l.submitted ? 'success' : 'warning'}
+            >
+              {l.realName}：{l.submitted ? '已提交' : '未提交/草稿'}
+            </Tag>
+          ))}
+        </Space>
       </div>
 
-      <Table
-        rowKey="examineeUserId"
-        columns={dynamicColumns}
-        dataSource={data?.rows || []}
-        loading={loading}
-        pagination={false}
-        scroll={{ x: 'max-content', y: 480 }}
-        bordered
-        size="middle"
-        expandable={{
-          expandedRowRender,
-          rowExpandable: () => true,
-        }}
-      />
+      <Tabs defaultActiveKey="head" items={tabItems} />
     </Modal>
   );
 };
