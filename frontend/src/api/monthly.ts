@@ -41,6 +41,14 @@ export interface MonthlyBatchVO {
   mySubmissionStatus: 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED';
   isExpired: boolean;
   roleWeights?: RoleWeightItem[];
+  centerLeaderCount?: number;
+  submittedCenterLeaderCount?: number;
+  peerCount?: number;
+  submittedPeerCount?: number;
+  deptHeadLeaderCount?: number;
+  submittedDeptHeadLeaderCount?: number;
+  totalEvaluatorCount?: number;
+  submittedEvaluatorCount?: number;
   createdAt: string;
 }
 

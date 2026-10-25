@@ -139,46 +139,27 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
       width: 130,
       render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
     },
-    ...(isTargetProject
-      ? [
-          {
-            title: '分管领导评分',
-            dataIndex: 'supervisorLeaderScore',
-            key: 'supervisorLeaderScore',
-            width: 130,
-            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
-          },
-          {
-            title: '其它中心领导评分（其它4位中心领导）',
-            dataIndex: 'otherLeaderScore',
-            key: 'otherLeaderScore',
-            width: 220,
-            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
-          },
-          {
-            title: '正职评分',
-            dataIndex: 'headScore',
-            key: 'headScore',
-            width: 120,
-            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
-          },
-        ]
-      : [
-          {
-            title: '其他中心领导评分（其它5位中心领导）',
-            dataIndex: 'otherLeaderScore',
-            key: 'otherLeaderScore',
-            width: 230,
-            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
-          },
-          {
-            title: '正职评分（11位正职）',
-            dataIndex: 'headScore',
-            key: 'headScore',
-            width: 170,
-            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
-          },
-        ]),
+    {
+      title: '分管领导评分',
+      dataIndex: 'supervisorLeaderScore',
+      key: 'supervisorLeaderScore',
+      width: 130,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '其它中心领导评分',
+      dataIndex: 'otherLeaderScore',
+      key: 'otherLeaderScore',
+      width: 170,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
+    {
+      title: '正职评分',
+      dataIndex: 'headScore',
+      key: 'headScore',
+      width: 120,
+      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+    },
     {
       title: '代表评分（评审专家评分）',
       dataIndex: 'expertScore',

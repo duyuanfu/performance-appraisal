@@ -101,6 +101,27 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             int submittedEvaluatorCount = (int) progressList.stream()
                     .filter(p -> "SUBMITTED".equals(p.getStatus()))
                     .count();
+            int centerLeaderCount = (int) progressList.stream()
+                    .filter(p -> "PRIMARY_LEADER".equals(p.getEvaluatorRoleType()) || "CENTER_LEADER".equals(p.getEvaluatorRoleType()))
+                    .count();
+            int submittedCenterLeaderCount = (int) progressList.stream()
+                    .filter(p -> ("PRIMARY_LEADER".equals(p.getEvaluatorRoleType()) || "CENTER_LEADER".equals(p.getEvaluatorRoleType())) && "SUBMITTED".equals(p.getStatus()))
+                    .count();
+
+            int peerCount = (int) progressList.stream()
+                    .filter(p -> "DEPT_HEAD_PEER".equals(p.getEvaluatorRoleType()) || "DEPT_DEPUTY_PEER".equals(p.getEvaluatorRoleType()))
+                    .count();
+            int submittedPeerCount = (int) progressList.stream()
+                    .filter(p -> ("DEPT_HEAD_PEER".equals(p.getEvaluatorRoleType()) || "DEPT_DEPUTY_PEER".equals(p.getEvaluatorRoleType())) && "SUBMITTED".equals(p.getStatus()))
+                    .count();
+
+            int deptHeadLeaderCount = (int) progressList.stream()
+                    .filter(p -> "DEPT_HEAD".equals(p.getEvaluatorRoleType()))
+                    .count();
+            int submittedDeptHeadLeaderCount = (int) progressList.stream()
+                    .filter(p -> "DEPT_HEAD".equals(p.getEvaluatorRoleType()) && "SUBMITTED".equals(p.getStatus()))
+                    .count();
+
             Long examineeCount = examineeMapper.selectCount(new LambdaQueryWrapper<MonthlyExaminee>()
                     .eq(MonthlyExaminee::getBatchId, b.getId()));
 
@@ -128,6 +149,14 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .leaderCount(totalEvaluatorCount)
                     .examineeCount(examineeCount.intValue())
                     .submittedLeaderCount(submittedEvaluatorCount)
+                    .totalEvaluatorCount(totalEvaluatorCount)
+                    .submittedEvaluatorCount(submittedEvaluatorCount)
+                    .centerLeaderCount(centerLeaderCount)
+                    .submittedCenterLeaderCount(submittedCenterLeaderCount)
+                    .peerCount(peerCount)
+                    .submittedPeerCount(submittedPeerCount)
+                    .deptHeadLeaderCount(deptHeadLeaderCount)
+                    .submittedDeptHeadLeaderCount(submittedDeptHeadLeaderCount)
                     .mySubmissionStatus(myStatus)
                     .isExpired(isExpired)
                     .createdAt(b.getCreatedAt())
@@ -144,8 +173,33 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             throw new BusinessException(404, "考核批次不存在");
         }
         LocalDateTime now = LocalDateTime.now();
-        Long leaderCount = evaluatorMapper.selectCount(new LambdaQueryWrapper<MonthlyEvaluator>()
-                .eq(MonthlyEvaluator::getBatchId, b.getId()));
+        List<EvaluatorProgressVO> progressList = getLeaderProgress(b.getId());
+        int totalEvaluatorCount = progressList.size();
+        int submittedEvaluatorCount = (int) progressList.stream()
+                .filter(p -> "SUBMITTED".equals(p.getStatus()))
+                .count();
+
+        int centerLeaderCount = (int) progressList.stream()
+                .filter(p -> "PRIMARY_LEADER".equals(p.getEvaluatorRoleType()) || "CENTER_LEADER".equals(p.getEvaluatorRoleType()))
+                .count();
+        int submittedCenterLeaderCount = (int) progressList.stream()
+                .filter(p -> ("PRIMARY_LEADER".equals(p.getEvaluatorRoleType()) || "CENTER_LEADER".equals(p.getEvaluatorRoleType())) && "SUBMITTED".equals(p.getStatus()))
+                .count();
+
+        int peerCount = (int) progressList.stream()
+                .filter(p -> "DEPT_HEAD_PEER".equals(p.getEvaluatorRoleType()) || "DEPT_DEPUTY_PEER".equals(p.getEvaluatorRoleType()))
+                .count();
+        int submittedPeerCount = (int) progressList.stream()
+                .filter(p -> ("DEPT_HEAD_PEER".equals(p.getEvaluatorRoleType()) || "DEPT_DEPUTY_PEER".equals(p.getEvaluatorRoleType())) && "SUBMITTED".equals(p.getStatus()))
+                .count();
+
+        int deptHeadLeaderCount = (int) progressList.stream()
+                .filter(p -> "DEPT_HEAD".equals(p.getEvaluatorRoleType()))
+                .count();
+        int submittedDeptHeadLeaderCount = (int) progressList.stream()
+                .filter(p -> "DEPT_HEAD".equals(p.getEvaluatorRoleType()) && "SUBMITTED".equals(p.getStatus()))
+                .count();
+
         Long examineeCount = examineeMapper.selectCount(new LambdaQueryWrapper<MonthlyExaminee>()
                 .eq(MonthlyExaminee::getBatchId, b.getId()));
 
@@ -172,8 +226,17 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .startTime(b.getStartTime())
                 .endTime(b.getEndTime())
                 .status(b.getStatus())
-                .leaderCount(leaderCount.intValue())
+                .leaderCount(totalEvaluatorCount)
                 .examineeCount(examineeCount.intValue())
+                .submittedLeaderCount(submittedEvaluatorCount)
+                .totalEvaluatorCount(totalEvaluatorCount)
+                .submittedEvaluatorCount(submittedEvaluatorCount)
+                .centerLeaderCount(centerLeaderCount)
+                .submittedCenterLeaderCount(submittedCenterLeaderCount)
+                .peerCount(peerCount)
+                .submittedPeerCount(submittedPeerCount)
+                .deptHeadLeaderCount(deptHeadLeaderCount)
+                .submittedDeptHeadLeaderCount(submittedDeptHeadLeaderCount)
                 .isExpired(b.getEndTime() != null && now.isAfter(b.getEndTime()))
                 .roleWeights(roleWeightDTOs)
                 .createdAt(b.getCreatedAt())

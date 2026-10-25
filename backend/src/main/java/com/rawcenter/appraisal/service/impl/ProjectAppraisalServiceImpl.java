@@ -825,17 +825,9 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     || !otherLeaderScores.isEmpty()
                     || !headScores.isEmpty();
 
-            if ("SPECIAL_INNOVATION".equalsIgnoreCase(batch.getBatchType()) && hasTierEvaluators) {
-                // (中心主要领导评分×40% + 其他中心领导评分×60%)×50% + 正职评分×40% + 代表评分×10%
-                BigDecimal centerPart = primaryScore.multiply(new BigDecimal("0.40"))
-                        .add(otherLeaderAvg.multiply(new BigDecimal("0.60")))
-                        .multiply(new BigDecimal("0.50"));
-                compositeScore = centerPart
-                        .add(headAvg.multiply(new BigDecimal("0.40")))
-                        .add(expertAvg.multiply(new BigDecimal("0.10")))
-                        .setScale(4, RoundingMode.HALF_UP);
-            } else if ("TARGET_PROJECT".equalsIgnoreCase(batch.getBatchType()) && hasTierEvaluators) {
-                // (中心主要领导评分×20% + 分管领导评分×30% + 其他中心领导评分×50%)×50% + 正职评分×40% + 代表评分×10%
+            if (hasTierEvaluators) {
+                // 统一综合得分计算公式（对齐《需求文档.md》最新规则）：
+                // 综合得分 = (中心主要领导评分×20% + 分管领导评分×30% + 其他中心领导评分×50%)×50% + 正职评分×40% + 代表评分(即评审专家)×10%
                 BigDecimal centerPart = primaryScore.multiply(new BigDecimal("0.20"))
                         .add(supervisorScore.multiply(new BigDecimal("0.30")))
                         .add(otherLeaderAvg.multiply(new BigDecimal("0.50")))
@@ -1018,15 +1010,17 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     dataList.add(row);
                 }
             } else if ("SPECIAL_INNOVATION".equalsIgnoreCase(summary.getBatchType())) {
-                // 专项与创新任务评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 其他中心领导评分（其它5位中心领导）, 正职评分（11位正职）, 代表评分（评审专家评分）, 综合得分, 排序
+                // 专项与创新任务评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 分管领导评分, 其它中心领导评分, 正职评分, 代表评分（评审专家评分）, 综合得分, 评定奖项等次, 排序
                 head.add(List.of("序号"));
                 head.add(List.of("项目名称"));
                 head.add(List.of("部门"));
                 head.add(List.of("中心主要领导评分"));
-                head.add(List.of("其他中心领导评分（其它5位中心领导）"));
-                head.add(List.of("正职评分（11位正职）"));
+                head.add(List.of("分管领导评分"));
+                head.add(List.of("其它中心领导评分"));
+                head.add(List.of("正职评分"));
                 head.add(List.of("代表评分（评审专家评分）"));
                 head.add(List.of("综合得分"));
+                head.add(List.of("评定奖项等次"));
                 head.add(List.of("排序"));
 
                 int idx = 1;
@@ -1036,10 +1030,12 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     row.add(r.getProjectName());
                     row.add(r.getDepartment() != null ? r.getDepartment() : "");
                     row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
+                    row.add(r.getAwardTierName() != null ? r.getAwardTierName() : "未获奖");
                     row.add(r.getRank());
                     dataList.add(row);
                 }

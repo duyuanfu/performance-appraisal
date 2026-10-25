@@ -35,6 +35,16 @@ public class MonthlyBatchVO {
     private Boolean isExpired;
     private List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeights;
 
+    // 分类评分进度字段
+    private Integer centerLeaderCount;
+    private Integer submittedCenterLeaderCount;
+    private Integer peerCount;
+    private Integer submittedPeerCount;
+    private Integer deptHeadLeaderCount;
+    private Integer submittedDeptHeadLeaderCount;
+    private Integer totalEvaluatorCount;
+    private Integer submittedEvaluatorCount;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 }
