@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.rawcenter.appraisal.common.BusinessException;
 import com.rawcenter.appraisal.common.UserContext;
 import com.rawcenter.appraisal.dto.ExpertScoreSubmitDTO;
+import com.rawcenter.appraisal.dto.MonthlyBatchSaveDTO;
 import com.rawcenter.appraisal.dto.ProjectBatchSaveDTO;
 import com.rawcenter.appraisal.dto.ProjectItemSaveDTO;
 import com.rawcenter.appraisal.entity.*;
@@ -43,6 +44,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
     private final ProjectScoreDetailMapper scoreDetailMapper;
     private final SysUserMapper userMapper;
     private final AppraisalMetricMapper metricMapper;
+    private final MonthlyRoleWeightMapper roleWeightMapper;
     private final MetricService metricService;
 
     @Value("${app.upload.dir:./data/uploads/projects}")
@@ -108,17 +110,26 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             throw new BusinessException(400, "评审批次名称【" + dto.getBatchName().trim() + "】已存在，请使用不同的批次名称！");
         }
 
-        // 校验专家权重：保持与月度绩效一致，权重合计必须为 100%
-        BigDecimal totalExpertWeight = BigDecimal.ZERO;
-        for (ProjectBatchSaveDTO.ExpertWeightDTO ew : dto.getExperts()) {
-            if (ew.getWeight() == null || ew.getWeight().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new BusinessException(400, "评审专家打分权重必须大于0");
+        // 1. 考评主体角色权重校验与默认装配（对齐月度绩效模式）
+        List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeights = dto.getRoleWeights();
+        if (CollectionUtils.isEmpty(roleWeights)) {
+            roleWeights = new ArrayList<>();
+            roleWeights.add(createRoleWeightDTO("PRIMARY_LEADER", "中心主要领导评分", new BigDecimal("10.0000"), 1));
+            roleWeights.add(createRoleWeightDTO("SUPERVISOR_LEADER", "中心分管领导评分", new BigDecimal("15.0000"), 2));
+            roleWeights.add(createRoleWeightDTO("OTHER_LEADER", "其他中心领导评分", new BigDecimal("25.0000"), 3));
+            roleWeights.add(createRoleWeightDTO("DEPT_HEAD", "部门正职评分", new BigDecimal("40.0000"), 4));
+            roleWeights.add(createRoleWeightDTO("EXPERT", "代表评分（评审专家）", new BigDecimal("10.0000"), 5));
+        } else {
+            BigDecimal totalRoleWeight = BigDecimal.ZERO;
+            for (MonthlyBatchSaveDTO.RoleWeightDTO rw : roleWeights) {
+                if (rw.getWeight() == null || rw.getWeight().compareTo(BigDecimal.ZERO) < 0) {
+                    throw new BusinessException(400, "角色【" + rw.getRoleName() + "】权重不能小于0");
+                }
+                totalRoleWeight = totalRoleWeight.add(rw.getWeight());
             }
-            totalExpertWeight = totalExpertWeight.add(ew.getWeight());
-        }
-        BigDecimal weightDiff = totalExpertWeight.subtract(new BigDecimal("100.0000")).abs();
-        if (weightDiff.compareTo(new BigDecimal("0.0001")) > 0) {
-            throw new BusinessException(400, "评审专家权重合计必须为100%，当前为：" + totalExpertWeight.stripTrailingZeros().toPlainString() + "%");
+            if (totalRoleWeight.subtract(new BigDecimal("100.0000")).abs().compareTo(new BigDecimal("0.0001")) > 0) {
+                throw new BusinessException(400, "考评主体角色权重合计必须等于100%，当前为：" + totalRoleWeight.stripTrailingZeros().toPlainString() + "%");
+            }
         }
 
         String batchType = StringUtils.hasText(dto.getBatchType()) ? dto.getBatchType() : "TARGET_PROJECT";
@@ -164,15 +175,50 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         // 1. Save Metrics
         metricService.saveBatchMetrics(batchId, dto.getMetrics());
 
-        // 2. Save Experts with weights
-        projectExpertMapper.delete(new LambdaQueryWrapper<ProjectExpert>().eq(ProjectExpert::getBatchId, batchId));
-        for (ProjectBatchSaveDTO.ExpertWeightDTO ew : dto.getExperts()) {
-            projectExpertMapper.insert(ProjectExpert.builder()
+        // 2. Save Role Weights
+        roleWeightMapper.delete(new LambdaQueryWrapper<MonthlyRoleWeight>().eq(MonthlyRoleWeight::getBatchId, batchId));
+        int rOrder = 1;
+        for (MonthlyBatchSaveDTO.RoleWeightDTO rw : roleWeights) {
+            roleWeightMapper.insert(MonthlyRoleWeight.builder()
                     .batchId(batchId)
-                    .expertUserId(ew.getExpertUserId())
-                    .weight(ew.getWeight() != null ? ew.getWeight() : new BigDecimal("1.0000"))
+                    .roleCategory(rw.getRoleCategory())
+                    .roleName(rw.getRoleName())
+                    .weight(rw.getWeight())
+                    .sortOrder(rw.getSortOrder() != null ? rw.getSortOrder() : rOrder++)
                     .build());
         }
+
+        // 3. Save Experts: 支持指定或自动全量装配专家
+        projectExpertMapper.delete(new LambdaQueryWrapper<ProjectExpert>().eq(ProjectExpert::getBatchId, batchId));
+        if (!CollectionUtils.isEmpty(dto.getExperts())) {
+            for (ProjectBatchSaveDTO.ExpertWeightDTO ew : dto.getExperts()) {
+                projectExpertMapper.insert(ProjectExpert.builder()
+                        .batchId(batchId)
+                        .expertUserId(ew.getExpertUserId())
+                        .weight(ew.getWeight() != null ? ew.getWeight() : new BigDecimal("50.0000"))
+                        .build());
+            }
+        } else {
+            List<SysUser> allExperts = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                    .eq(SysUser::getPositionCategory, "EXPERT")
+                    .eq(SysUser::getStatus, 1));
+            for (SysUser exp : allExperts) {
+                projectExpertMapper.insert(ProjectExpert.builder()
+                        .batchId(batchId)
+                        .expertUserId(exp.getId())
+                        .weight(new BigDecimal("50.0000"))
+                        .build());
+            }
+        }
+    }
+
+    private MonthlyBatchSaveDTO.RoleWeightDTO createRoleWeightDTO(String category, String name, BigDecimal weight, int order) {
+        MonthlyBatchSaveDTO.RoleWeightDTO dto = new MonthlyBatchSaveDTO.RoleWeightDTO();
+        dto.setRoleCategory(category);
+        dto.setRoleName(name);
+        dto.setWeight(weight);
+        dto.setSortOrder(order);
+        return dto;
     }
 
     @Override
@@ -257,6 +303,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         projectExpertMapper.delete(new LambdaQueryWrapper<ProjectExpert>().eq(ProjectExpert::getBatchId, batchId));
         projectItemMapper.delete(new LambdaQueryWrapper<ProjectItem>().eq(ProjectItem::getBatchId, batchId));
         metricMapper.delete(new LambdaQueryWrapper<AppraisalMetric>().eq(AppraisalMetric::getBatchId, batchId));
+        roleWeightMapper.delete(new LambdaQueryWrapper<MonthlyRoleWeight>().eq(MonthlyRoleWeight::getBatchId, batchId));
         batchMapper.deleteById(batchId);
     }
 
@@ -743,6 +790,29 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             totalExpertWeight = totalExpertWeight.add(exp.getWeight());
         }
 
+        // 2. Load Role Weights
+        List<MonthlyRoleWeight> savedRoleWeights = roleWeightMapper.selectList(new LambdaQueryWrapper<MonthlyRoleWeight>()
+                .eq(MonthlyRoleWeight::getBatchId, batchId)
+                .orderByAsc(MonthlyRoleWeight::getSortOrder));
+        Map<String, BigDecimal> rwMap = savedRoleWeights.stream()
+                .collect(Collectors.toMap(MonthlyRoleWeight::getRoleCategory, MonthlyRoleWeight::getWeight, (a, b) -> a));
+
+        BigDecimal wPrimary = rwMap.getOrDefault("PRIMARY_LEADER", new BigDecimal("10.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wSupervisor = rwMap.getOrDefault("SUPERVISOR_LEADER", new BigDecimal("15.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wOther = rwMap.getOrDefault("OTHER_LEADER", new BigDecimal("25.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wHead = rwMap.getOrDefault("DEPT_HEAD", new BigDecimal("40.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wExpert = rwMap.getOrDefault("EXPERT", new BigDecimal("10.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+
+        List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeightDTOs = savedRoleWeights.stream()
+                .map(rw -> {
+                    MonthlyBatchSaveDTO.RoleWeightDTO r = new MonthlyBatchSaveDTO.RoleWeightDTO();
+                    r.setRoleCategory(rw.getRoleCategory());
+                    r.setRoleName(rw.getRoleName());
+                    r.setWeight(rw.getWeight());
+                    r.setSortOrder(rw.getSortOrder());
+                    return r;
+                }).collect(Collectors.toList());
+
         // 2. Metrics & Projects
         List<AppraisalMetric> metrics = metricService.listMetricsByBatchId(batchId);
         List<ProjectItem> projects = projectItemMapper.selectList(new LambdaQueryWrapper<ProjectItem>()
@@ -826,15 +896,13 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     || !headScores.isEmpty();
 
             if (hasTierEvaluators) {
-                // 统一综合得分计算公式（对齐《需求文档.md》最新规则）：
-                // 综合得分 = (中心主要领导评分×20% + 分管领导评分×30% + 其他中心领导评分×50%)×50% + 正职评分×40% + 代表评分(即评审专家)×10%
-                BigDecimal centerPart = primaryScore.multiply(new BigDecimal("0.20"))
-                        .add(supervisorScore.multiply(new BigDecimal("0.30")))
-                        .add(otherLeaderAvg.multiply(new BigDecimal("0.50")))
-                        .multiply(new BigDecimal("0.50"));
-                compositeScore = centerPart
-                        .add(headAvg.multiply(new BigDecimal("0.40")))
-                        .add(expertAvg.multiply(new BigDecimal("0.10")))
+                // 统一综合得分计算公式（对齐《需求文档.md》最新规则与主体角色权重）：
+                // 综合得分 = (中心主要领导×wPrimary + 分管领导×wSupervisor + 其他中心领导×wOther) + 正职评分×wHead + 代表评分(评审专家)×wExpert
+                compositeScore = primaryScore.multiply(wPrimary)
+                        .add(supervisorScore.multiply(wSupervisor))
+                        .add(otherLeaderAvg.multiply(wOther))
+                        .add(headAvg.multiply(wHead))
+                        .add(expertAvg.multiply(wExpert))
                         .setScale(4, RoundingMode.HALF_UP);
             } else if (totalExpertWeight.compareTo(BigDecimal.ZERO) > 0) {
                 compositeScore = weightedTotal.divide(totalExpertWeight, 4, RoundingMode.HALF_UP);
@@ -919,6 +987,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .averageScore(averageScore)
                 .metrics(metrics)
                 .experts(expertHeaders)
+                .roleWeights(roleWeightDTOs)
                 .rows(summaryRows)
                 .build();
     }

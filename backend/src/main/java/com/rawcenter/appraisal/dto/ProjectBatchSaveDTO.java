@@ -28,7 +28,8 @@ public class ProjectBatchSaveDTO {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime endTime;
 
-    @NotEmpty(message = "请配置评审专家及权重")
+    private List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeights;
+
     private List<ExpertWeightDTO> experts;
 
     @NotEmpty(message = "请配置评审指标")

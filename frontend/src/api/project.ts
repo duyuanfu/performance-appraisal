@@ -6,6 +6,13 @@ export interface ExpertWeightItem {
   weight: number;
 }
 
+export interface RoleWeightItem {
+  roleCategory: string;
+  roleName: string;
+  weight: number;
+  sortOrder?: number;
+}
+
 export interface ProjectBatchSaveDTO {
   id?: number;
   batchName: string;
@@ -14,7 +21,8 @@ export interface ProjectBatchSaveDTO {
   appraisalPeriod: string;
   startTime?: string;
   endTime?: string;
-  experts: ExpertWeightItem[];
+  roleWeights?: RoleWeightItem[];
+  experts?: ExpertWeightItem[];
   metrics: MetricItem[];
 }
 
@@ -27,6 +35,7 @@ export interface ProjectBatchVO {
   startTime?: string;
   endTime?: string;
   status: 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED';
+  roleWeights?: RoleWeightItem[];
   createdAt: string;
 }
 
@@ -92,6 +101,7 @@ export interface AnnualProjectSummaryVO {
   status: string;
   averageScore?: number;
   metrics: MetricItem[];
+  roleWeights?: RoleWeightItem[];
   experts: {
     expertUserId: number;
     realName: string;
