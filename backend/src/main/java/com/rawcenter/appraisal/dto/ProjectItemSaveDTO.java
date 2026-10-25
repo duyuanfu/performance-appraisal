@@ -22,5 +22,6 @@ public class ProjectItemSaveDTO {
 
     private String category; // BUSINESS, MANAGEMENT
     private String department; // 申报部门
+    private Long supervisorId; // 分管领导用户ID
     private Integer sortOrder;
 }

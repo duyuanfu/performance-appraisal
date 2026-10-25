@@ -46,6 +46,7 @@ public class DatabaseInitializer implements CommandLineRunner {
             // 3. 检查并补充 project_item 表字段
             ensureColumn(metaData, stmt, "project_item", "category", "VARCHAR(32) DEFAULT '' COMMENT '申报类别: BUSINESS, MANAGEMENT'");
             ensureColumn(metaData, stmt, "project_item", "department", "VARCHAR(64) DEFAULT '' COMMENT '申报部门'");
+            ensureColumn(metaData, stmt, "project_item", "supervisor_id", "BIGINT NULL COMMENT '分管领导用户ID'");
             ensureColumn(metaData, stmt, "project_item", "award_tier", "VARCHAR(32) DEFAULT '' COMMENT '评定奖项等次'");
             ensureColumn(metaData, stmt, "project_item", "score_coefficient", "DECIMAL(10,4) DEFAULT NULL COMMENT '得分系数'");
             ensureColumn(metaData, stmt, "project_item", "bonus_amount", "DECIMAL(12,4) DEFAULT NULL COMMENT '核定奖励金额'");

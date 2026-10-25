@@ -564,13 +564,12 @@ public class AppraisalFlowTest {
         Assertions.assertFalse(batches.isEmpty());
         Long batchId = batches.get(0).getId();
 
-        // 2. Add projects with quota validation
+        // 2. Add candidate projects
         ProjectItemSaveDTO p1 = new ProjectItemSaveDTO();
         p1.setBatchId(batchId);
         p1.setProjectCode("SP-01");
         p1.setProjectName("数字化配方智能算法优化");
-        p1.setDepartment("技术开发部");
-        p1.setCategory("BUSINESS");
+        p1.setSupervisorId(4L); // 施文萃
         p1.setOwnerName("焦部长");
         projectService.saveProjectItem(p1);
 
@@ -578,8 +577,7 @@ public class AppraisalFlowTest {
         p2.setBatchId(batchId);
         p2.setProjectCode("SP-02");
         p2.setProjectName("烟叶醇化智能温湿度调控");
-        p2.setDepartment("技术开发部");
-        p2.setCategory("BUSINESS");
+        p2.setSupervisorId(4L);
         p2.setOwnerName("朱副部长");
         projectService.saveProjectItem(p2);
 
@@ -587,20 +585,9 @@ public class AppraisalFlowTest {
         p3.setBatchId(batchId);
         p3.setProjectCode("SP-03");
         p3.setProjectName("原料近红外快速无损检测");
-        p3.setDepartment("技术开发部");
-        p3.setCategory("BUSINESS");
+        p3.setSupervisorId(4L);
         p3.setOwnerName("韩副部长");
         projectService.saveProjectItem(p3);
-
-        // Test Quota: 4th BUSINESS project for same department MUST be rejected
-        ProjectItemSaveDTO p4 = new ProjectItemSaveDTO();
-        p4.setBatchId(batchId);
-        p4.setProjectCode("SP-04");
-        p4.setProjectName("超额项目");
-        p4.setDepartment("技术开发部");
-        p4.setCategory("BUSINESS");
-        p4.setOwnerName("张专员");
-        Assertions.assertThrows(BusinessException.class, () -> projectService.saveProjectItem(p4));
 
         // 3. Publish and Score
         projectService.publishProjectBatch(batchId);

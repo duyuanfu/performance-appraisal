@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS project_item (
     owner_name VARCHAR(64) NOT NULL COMMENT '项目负责人姓名',
     category VARCHAR(32) DEFAULT '' COMMENT '申报类别: BUSINESS (业务类), MANAGEMENT (管理类)',
     department VARCHAR(64) DEFAULT '' COMMENT '申报部门',
+    supervisor_id BIGINT DEFAULT NULL COMMENT '分管领导用户ID',
     award_tier VARCHAR(32) DEFAULT '' COMMENT '评定奖项等次: SPECIAL, FIRST, SECOND, THIRD, NONE',
     score_coefficient DECIMAL(10,4) DEFAULT NULL COMMENT '目标绩效任务得分系数',
     bonus_amount DECIMAL(12,4) DEFAULT NULL COMMENT '核定奖励金额 (万元)',

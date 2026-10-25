@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS project_item (
     owner_name VARCHAR(64) NOT NULL,
     category VARCHAR(32) DEFAULT '',
     department VARCHAR(64) DEFAULT '',
+    supervisor_id BIGINT DEFAULT NULL,
     award_tier VARCHAR(32) DEFAULT '',
     score_coefficient DECIMAL(10,4) DEFAULT NULL,
     bonus_amount DECIMAL(12,4) DEFAULT NULL,

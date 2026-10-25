@@ -31,6 +31,8 @@ import {
   ProjectItemVO,
   ProjectItemSaveDTO,
 } from '../../api/project';
+import { listUsersApi } from '../../api/user';
+import { UserVO } from '../../api/auth';
 
 const { Text } = Typography;
 
@@ -52,7 +54,17 @@ export const ProjectManagementModal: React.FC<Props> = ({
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<ProjectItemVO | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [supervisors, setSupervisors] = useState<UserVO[]>([]);
   const [form] = Form.useForm();
+
+  const loadSupervisors = async () => {
+    try {
+      const users = await listUsersApi();
+      setSupervisors(users.filter((u) => u.positionCategory === 'CENTER_LEADER'));
+    } catch (e) {
+      // Error handled
+    }
+  };
 
   const loadProjects = async () => {
     if (!batchId) return;
@@ -68,6 +80,7 @@ export const ProjectManagementModal: React.FC<Props> = ({
   useEffect(() => {
     if (open && batchId) {
       loadProjects();
+      loadSupervisors();
     }
   }, [open, batchId]);
 
@@ -79,8 +92,7 @@ export const ProjectManagementModal: React.FC<Props> = ({
         projectCode: item.projectCode,
         projectName: item.projectName,
         ownerName: item.ownerName,
-        department: item.department,
-        category: item.category || 'BUSINESS',
+        supervisorId: item.supervisorId,
         sortOrder: item.sortOrder,
       });
     } else {
@@ -89,8 +101,7 @@ export const ProjectManagementModal: React.FC<Props> = ({
         projectCode: String(projects.length + 1),
         projectName: '',
         ownerName: '',
-        department: undefined,
-        category: 'BUSINESS',
+        supervisorId: undefined,
         sortOrder: projects.length + 1,
       });
     }
@@ -107,8 +118,7 @@ export const ProjectManagementModal: React.FC<Props> = ({
         projectCode: values.projectCode,
         projectName: values.projectName,
         ownerName: values.ownerName,
-        department: values.department,
-        category: values.category,
+        supervisorId: values.supervisorId,
         sortOrder: values.sortOrder,
       };
 
@@ -148,20 +158,6 @@ export const ProjectManagementModal: React.FC<Props> = ({
     return false; // Prevent auto upload by antd
   };
 
-  const DEPARTMENTS = [
-    '办公室',
-    '政工部',
-    '纪检监察部（审计办）',
-    '财务管理部',
-    '规范内管部',
-    '计划管理部',
-    '采购调拨部',
-    '技术开发部',
-    '复烤管理部',
-    '质量和基地管理部',
-    '样品管理部',
-  ];
-
   const columns = [
     {
       title: '项目序号/编号',
@@ -176,22 +172,11 @@ export const ProjectManagementModal: React.FC<Props> = ({
       width: 200,
     },
     {
-      title: '申报部门',
-      dataIndex: 'department',
-      key: 'department',
-      width: 140,
-      render: (d: string) => d || '-',
-    },
-    {
-      title: '申报类别',
-      dataIndex: 'category',
-      key: 'category',
-      width: 90,
-      render: (c: string) => (
-        <Tag color={c === 'MANAGEMENT' ? 'purple' : 'cyan'}>
-          {c === 'MANAGEMENT' ? '管理类' : '业务类'}
-        </Tag>
-      ),
+      title: '分管领导',
+      dataIndex: 'supervisorName',
+      key: 'supervisorName',
+      width: 130,
+      render: (name: string) => name || '-',
     },
     {
       title: '项目负责人',
@@ -378,27 +363,21 @@ export const ProjectManagementModal: React.FC<Props> = ({
       >
         <Form form={form} layout="vertical">
           <Form.Item
-            name="department"
-            label="申报部门"
-            rules={[{ required: true, message: '请选择申报部门' }]}
+            name="supervisorId"
+            label="分管领导"
+            rules={[{ required: true, message: '请选择分管领导' }]}
           >
-            <Select placeholder="选择申报部门">
-              {DEPARTMENTS.map((d) => (
-                <Select.Option key={d} value={d}>
-                  {d}
+            <Select
+              placeholder="选择分管领导"
+              showSearch
+              optionFilterProp="children"
+              allowClear
+            >
+              {supervisors.map((s) => (
+                <Select.Option key={s.id} value={s.id}>
+                  {s.realName}（{s.department || '中心'} - {s.position || '中心领导'}）
                 </Select.Option>
               ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="category"
-            label="申报类别"
-            rules={[{ required: true, message: '请选择申报类别' }]}
-          >
-            <Select placeholder="选择申报类别">
-              <Select.Option value="BUSINESS">业务类（重点任务/攻关项目，每部门≤3项）</Select.Option>
-              <Select.Option value="MANAGEMENT">管理类（综合/规范/党群管理，每部门≤2项）</Select.Option>
             </Select>
           </Form.Item>
 

@@ -56,6 +56,8 @@ export interface ProjectItemVO {
   ownerName: string;
   category?: string;
   department?: string;
+  supervisorId?: number;
+  supervisorName?: string;
   awardTier?: string;
   scoreCoefficient?: number;
   bonusAmount?: number;
@@ -76,6 +78,7 @@ export interface ProjectItemSaveDTO {
   ownerName: string;
   category?: string;
   department?: string;
+  supervisorId?: number;
   sortOrder?: number;
 }
 
@@ -124,6 +127,8 @@ export interface AnnualProjectSummaryVO {
     ownerName: string;
     category?: string;
     department?: string;
+    supervisorId?: number;
+    supervisorName?: string;
     primaryLeaderScore?: number;
     supervisorLeaderScore?: number;
     otherLeaderScore?: number;

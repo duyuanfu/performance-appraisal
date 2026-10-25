@@ -322,25 +322,39 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .orderByAsc(ProjectItem::getSortOrder)
                 .orderByAsc(ProjectItem::getId));
 
-        return items.stream().map(item -> ProjectItemVO.builder()
-                .id(item.getId())
-                .batchId(item.getBatchId())
-                .projectCode(item.getProjectCode())
-                .projectName(item.getProjectName())
-                .ownerName(item.getOwnerName())
-                .category(item.getCategory())
-                .department(item.getDepartment())
-                .awardTier(item.getAwardTier())
-                .scoreCoefficient(item.getScoreCoefficient())
-                .bonusAmount(item.getBonusAmount())
-                .rankNum(item.getRankNum())
-                .materialPdfName(item.getMaterialPdfName())
-                .hasMaterial(StringUtils.hasText(item.getMaterialPdfPath()))
-                .attachmentPdfName(item.getAttachmentPdfName())
-                .hasAttachment(StringUtils.hasText(item.getAttachmentPdfPath()))
-                .sortOrder(item.getSortOrder())
-                .createdAt(item.getCreatedAt())
-                .build()).collect(Collectors.toList());
+        List<Long> supervisorIds = items.stream()
+                .map(ProjectItem::getSupervisorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, SysUser> supervisorMap = supervisorIds.isEmpty() ? Collections.emptyMap()
+                : userMapper.selectBatchIds(supervisorIds).stream()
+                .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
+
+        return items.stream().map(item -> {
+            SysUser supervisor = item.getSupervisorId() != null ? supervisorMap.get(item.getSupervisorId()) : null;
+            return ProjectItemVO.builder()
+                    .id(item.getId())
+                    .batchId(item.getBatchId())
+                    .projectCode(item.getProjectCode())
+                    .projectName(item.getProjectName())
+                    .ownerName(item.getOwnerName())
+                    .category(item.getCategory())
+                    .department(item.getDepartment())
+                    .supervisorId(item.getSupervisorId())
+                    .supervisorName(supervisor != null ? supervisor.getRealName() : "")
+                    .awardTier(item.getAwardTier())
+                    .scoreCoefficient(item.getScoreCoefficient())
+                    .bonusAmount(item.getBonusAmount())
+                    .rankNum(item.getRankNum())
+                    .materialPdfName(item.getMaterialPdfName())
+                    .hasMaterial(StringUtils.hasText(item.getMaterialPdfPath()))
+                    .attachmentPdfName(item.getAttachmentPdfName())
+                    .hasAttachment(StringUtils.hasText(item.getAttachmentPdfPath()))
+                    .sortOrder(item.getSortOrder())
+                    .createdAt(item.getCreatedAt())
+                    .build();
+        }).collect(Collectors.toList());
     }
 
     @Override
@@ -365,38 +379,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
 
     @Override
     public void saveProjectItem(ProjectItemSaveDTO dto) {
-        AppraisalBatch batch = batchMapper.selectById(dto.getBatchId());
-        if (dto.getId() == null && batch != null && StringUtils.hasText(dto.getDepartment())) {
-            String dept = dto.getDepartment().trim();
-            if ("SPECIAL_INNOVATION".equalsIgnoreCase(batch.getBatchType())) {
-                String cat = dto.getCategory() != null ? dto.getCategory().trim().toUpperCase() : "BUSINESS";
-                if ("MANAGEMENT".equalsIgnoreCase(cat)) {
-                    Long count = projectItemMapper.selectCount(new LambdaQueryWrapper<ProjectItem>()
-                            .eq(ProjectItem::getBatchId, dto.getBatchId())
-                            .eq(ProjectItem::getDepartment, dept)
-                            .eq(ProjectItem::getCategory, "MANAGEMENT"));
-                    if (count >= 2) {
-                        throw new BusinessException(400, "部门【" + dept + "】申报管理类专项与创新任务已达到上限（最多2项）");
-                    }
-                } else {
-                    Long count = projectItemMapper.selectCount(new LambdaQueryWrapper<ProjectItem>()
-                            .eq(ProjectItem::getBatchId, dto.getBatchId())
-                            .eq(ProjectItem::getDepartment, dept)
-                            .ne(ProjectItem::getCategory, "MANAGEMENT"));
-                    if (count >= 3) {
-                        throw new BusinessException(400, "部门【" + dept + "】申报业务类专项与创新任务已达到上限（最多3项）");
-                    }
-                }
-            } else if ("TARGET_PROJECT".equalsIgnoreCase(batch.getBatchType())) {
-                Long count = projectItemMapper.selectCount(new LambdaQueryWrapper<ProjectItem>()
-                        .eq(ProjectItem::getBatchId, dto.getBatchId())
-                        .eq(ProjectItem::getDepartment, dept));
-                if (count >= 1) {
-                    throw new BusinessException(400, "部门【" + dept + "】申报目标绩效任务已达到上限（每部门仅限申报1项）");
-                }
-            }
-        }
-
         if (dto.getId() == null) {
             ProjectItem item = ProjectItem.builder()
                     .batchId(dto.getBatchId())
@@ -405,6 +387,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .ownerName(dto.getOwnerName())
                     .category(dto.getCategory() != null ? dto.getCategory() : "")
                     .department(dto.getDepartment() != null ? dto.getDepartment() : "")
+                    .supervisorId(dto.getSupervisorId())
                     .sortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 1)
                     .materialPdfName("")
                     .materialPdfPath("")
@@ -427,6 +410,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             if (dto.getDepartment() != null) {
                 item.setDepartment(dto.getDepartment());
             }
+            item.setSupervisorId(dto.getSupervisorId());
             if (dto.getSortOrder() != null) {
                 item.setSortOrder(dto.getSortOrder());
             }
@@ -918,6 +902,15 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
 
         List<AnnualProjectSummaryVO.ProjectSummaryRowVO> summaryRows = new ArrayList<>();
 
+        List<Long> supervisorIds = projects.stream()
+                .map(ProjectItem::getSupervisorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, SysUser> supervisorUserMap = supervisorIds.isEmpty() ? Collections.emptyMap()
+                : userMapper.selectBatchIds(supervisorIds).stream()
+                .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
+
         for (ProjectItem p : projects) {
             Map<Long, BigDecimal> expertScoreMap = new HashMap<>();
             BigDecimal weightedTotal = BigDecimal.ZERO;
@@ -939,8 +932,9 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             List<BigDecimal> headScores = new ArrayList<>();
             List<BigDecimal> expertScoresList = new ArrayList<>();
 
-            Long supervisorId = null;
-            if (StringUtils.hasText(p.getDepartment())) {
+            Long supervisorId = p.getSupervisorId();
+            if (supervisorId == null && StringUtils.hasText(p.getDepartment())) {
+                // 兼容历史数据：旧版按申报部门推导部门正职的分管领导
                 List<SysUser> deptHeads = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
                         .eq(SysUser::getDepartment, p.getDepartment())
                         .eq(SysUser::getPositionCategory, "DEPT_HEAD"));
@@ -1036,6 +1030,9 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .ownerName(p.getOwnerName())
                     .category(p.getCategory())
                     .department(p.getDepartment())
+                    .supervisorId(p.getSupervisorId())
+                    .supervisorName(p.getSupervisorId() != null && supervisorUserMap.get(p.getSupervisorId()) != null
+                            ? supervisorUserMap.get(p.getSupervisorId()).getRealName() : "")
                     .primaryLeaderScore(primaryScore)
                     .supervisorLeaderScore(supervisorScore)
                     .otherLeaderScore(otherLeaderAvg)
@@ -1150,7 +1147,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 // 目标绩效评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 分管领导评分, 其它中心领导评分（其它4位中心领导）, 正职评分, 代表评分（评审专家评分）, 综合得分, 得分系数, 排序
                 head.add(List.of("序号"));
                 head.add(List.of("项目名称"));
-                head.add(List.of("部门"));
+                head.add(List.of("分管领导"));
                 head.add(List.of("中心主要领导评分"));
                 head.add(List.of("分管领导评分"));
                 head.add(List.of("其它中心领导评分（其它4位中心领导）"));
@@ -1165,7 +1162,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     List<Object> row = new ArrayList<>();
                     row.add(idx++);
                     row.add(r.getProjectName());
-                    row.add(r.getDepartment() != null ? r.getDepartment() : "");
+                    row.add(r.getSupervisorName() != null ? r.getSupervisorName() : "");
                     row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
@@ -1180,7 +1177,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 // 专项与创新任务评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 分管领导评分, 其它中心领导评分, 正职评分, 代表评分（评审专家评分）, 综合得分, 评定奖项等次, 排序
                 head.add(List.of("序号"));
                 head.add(List.of("项目名称"));
-                head.add(List.of("部门"));
+                head.add(List.of("分管领导"));
                 head.add(List.of("中心主要领导评分"));
                 head.add(List.of("分管领导评分"));
                 head.add(List.of("其它中心领导评分"));
@@ -1195,7 +1192,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     List<Object> row = new ArrayList<>();
                     row.add(idx++);
                     row.add(r.getProjectName());
-                    row.add(r.getDepartment() != null ? r.getDepartment() : "");
+                    row.add(r.getSupervisorName() != null ? r.getSupervisorName() : "");
                     row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");

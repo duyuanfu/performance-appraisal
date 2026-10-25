@@ -97,25 +97,14 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
       fixed: 'left' as const,
     },
     {
-      title: '申报部门',
-      dataIndex: 'department',
-      key: 'department',
-      width: 140,
-      render: (d: string) => d || '-',
+      title: '分管领导',
+      dataIndex: 'supervisorName',
+      key: 'supervisorName',
+      width: 130,
+      render: (name: string) => name || '-',
     },
     ...(isSpecialInnovation
       ? [
-          {
-            title: '类别',
-            dataIndex: 'category',
-            key: 'category',
-            width: 100,
-            render: (c: string) => (
-              <Tag color={c === 'MANAGEMENT' ? 'purple' : 'cyan'}>
-                {c === 'MANAGEMENT' ? '管理类' : '业务类'}
-              </Tag>
-            ),
-          },
           {
             title: '评定奖项',
             dataIndex: 'awardTier',
