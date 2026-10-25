@@ -18,6 +18,7 @@ import com.rawcenter.appraisal.vo.MonthlyLeaderScoringVO;
 import com.rawcenter.appraisal.vo.MonthlySummaryVO;
 import com.rawcenter.appraisal.vo.UserVO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -30,6 +31,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
@@ -60,16 +62,19 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .eq(StringUtils.hasText(status), AppraisalBatch::getStatus, status)
                 .like(StringUtils.hasText(keyword), AppraisalBatch::getBatchName, keyword);
 
-        // 数据权限隔离：领导角色仅可见分配给自己的打分批次，员工角色仅可见自己参评的批次；且未发布的草稿对非管理员完全不可见！
+        // 数据权限隔离：未发布的草稿对非管理员完全不可见；各角色仅可见其有评分任务或有参评结果的批次
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(activeRole) || "SYS_ADMIN".equalsIgnoreCase(activeRole);
+        if (!isAdmin) {
+            wrapper.ne(AppraisalBatch::getStatus, "DRAFT");
+        }
+
         if ("LEADER".equalsIgnoreCase(activeRole) && currentUserId != null) {
             List<MonthlyEvaluator> myEvaluations = evaluatorMapper.selectList(new LambdaQueryWrapper<MonthlyEvaluator>()
                     .eq(MonthlyEvaluator::getLeaderUserId, currentUserId));
-            if (myEvaluations.isEmpty()) {
-                return Collections.emptyList();
+            if (!myEvaluations.isEmpty()) {
+                List<Long> allowedBatchIds = myEvaluations.stream().map(MonthlyEvaluator::getBatchId).collect(Collectors.toList());
+                wrapper.in(AppraisalBatch::getId, allowedBatchIds);
             }
-            List<Long> allowedBatchIds = myEvaluations.stream().map(MonthlyEvaluator::getBatchId).collect(Collectors.toList());
-            wrapper.in(AppraisalBatch::getId, allowedBatchIds);
-            wrapper.ne(AppraisalBatch::getStatus, "DRAFT");
         } else if ("EMPLOYEE".equalsIgnoreCase(activeRole) && currentUserId != null) {
             List<MonthlyExaminee> myExaminees = examineeMapper.selectList(new LambdaQueryWrapper<MonthlyExaminee>()
                     .eq(MonthlyExaminee::getExamineeUserId, currentUserId));
@@ -78,7 +83,6 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             }
             List<Long> allowedBatchIds = myExaminees.stream().map(MonthlyExaminee::getBatchId).collect(Collectors.toList());
             wrapper.in(AppraisalBatch::getId, allowedBatchIds);
-            wrapper.ne(AppraisalBatch::getStatus, "DRAFT");
         }
 
         wrapper.orderByDesc(AppraisalBatch::getCreatedAt);
@@ -92,31 +96,21 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         LocalDateTime now = LocalDateTime.now();
 
         for (AppraisalBatch b : batches) {
-            Long leaderCount = evaluatorMapper.selectCount(new LambdaQueryWrapper<MonthlyEvaluator>()
-                    .eq(MonthlyEvaluator::getBatchId, b.getId()));
+            List<EvaluatorProgressVO> progressList = getLeaderProgress(b.getId());
+            int totalEvaluatorCount = progressList.size();
+            int submittedEvaluatorCount = (int) progressList.stream()
+                    .filter(p -> "SUBMITTED".equals(p.getStatus()))
+                    .count();
             Long examineeCount = examineeMapper.selectCount(new LambdaQueryWrapper<MonthlyExaminee>()
                     .eq(MonthlyExaminee::getBatchId, b.getId()));
-            Long submittedLeaderCount = scoreRecordMapper.selectCount(new LambdaQueryWrapper<MonthlyScoreRecord>()
-                    .eq(MonthlyScoreRecord::getBatchId, b.getId())
-                    .eq(MonthlyScoreRecord::getStatus, "SUBMITTED"));
-
-            // Calculate submitted unique leaders
-            List<MonthlyScoreRecord> submittedRecords = scoreRecordMapper.selectList(new LambdaQueryWrapper<MonthlyScoreRecord>()
-                    .eq(MonthlyScoreRecord::getBatchId, b.getId())
-                    .eq(MonthlyScoreRecord::getStatus, "SUBMITTED"));
-            long distinctSubmittedLeaders = submittedRecords.stream()
-                    .map(MonthlyScoreRecord::getLeaderUserId)
-                    .distinct()
-                    .count();
 
             String myStatus = "NOT_STARTED";
             if (currentUserId != null) {
-                List<MonthlyScoreRecord> myRecords = scoreRecordMapper.selectList(new LambdaQueryWrapper<MonthlyScoreRecord>()
-                        .eq(MonthlyScoreRecord::getBatchId, b.getId())
-                        .eq(MonthlyScoreRecord::getLeaderUserId, currentUserId));
-                if (!myRecords.isEmpty()) {
-                    boolean allSubmitted = myRecords.stream().allMatch(r -> "SUBMITTED".equals(r.getStatus()));
-                    myStatus = allSubmitted ? "SUBMITTED" : "DRAFT";
+                EvaluatorProgressVO myProgress = progressList.stream()
+                        .filter(p -> currentUserId.equals(p.getUserId()))
+                        .findFirst().orElse(null);
+                if (myProgress != null) {
+                    myStatus = myProgress.getStatus();
                 }
             }
 
@@ -131,9 +125,9 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .startTime(b.getStartTime())
                     .endTime(b.getEndTime())
                     .status(b.getStatus())
-                    .leaderCount(leaderCount.intValue())
+                    .leaderCount(totalEvaluatorCount)
                     .examineeCount(examineeCount.intValue())
-                    .submittedLeaderCount((int) distinctSubmittedLeaders)
+                    .submittedLeaderCount(submittedEvaluatorCount)
                     .mySubmissionStatus(myStatus)
                     .isExpired(isExpired)
                     .createdAt(b.getCreatedAt())
@@ -729,58 +723,118 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             throw new BusinessException(404, "批次不存在");
         }
 
-        List<MonthlyEvaluator> evaluators = evaluatorMapper.selectList(new LambdaQueryWrapper<MonthlyEvaluator>()
-                .eq(MonthlyEvaluator::getBatchId, batchId));
-        if (evaluators.isEmpty()) {
+        String category = StringUtils.hasText(batch.getCategory()) ? batch.getCategory() : "DEPT_HEAD";
+
+        // 1. 获取所有参评被考核人员
+        List<MonthlyExaminee> examinees = examineeMapper.selectList(new LambdaQueryWrapper<MonthlyExaminee>()
+                .eq(MonthlyExaminee::getBatchId, batchId));
+        if (examinees.isEmpty()) {
             return Collections.emptyList();
         }
 
-        Long examineeCount = examineeMapper.selectCount(new LambdaQueryWrapper<MonthlyExaminee>()
-                .eq(MonthlyExaminee::getBatchId, batchId));
-
-        List<Long> leaderUserIds = evaluators.stream().map(MonthlyEvaluator::getLeaderUserId).collect(Collectors.toList());
-        Map<Long, SysUser> userMap = userMapper.selectBatchIds(leaderUserIds)
+        List<Long> examineeUserIds = examinees.stream().map(MonthlyExaminee::getExamineeUserId).collect(Collectors.toList());
+        Map<Long, SysUser> examineeUserMap = userMapper.selectBatchIds(examineeUserIds)
                 .stream().collect(Collectors.toMap(SysUser::getId, u -> u));
 
+        // 2. 获取该批次全部打分记录并按考评人分组
         List<MonthlyScoreRecord> allRecords = scoreRecordMapper.selectList(new LambdaQueryWrapper<MonthlyScoreRecord>()
                 .eq(MonthlyScoreRecord::getBatchId, batchId));
-
-        Map<Long, List<MonthlyScoreRecord>> recordsByLeader = allRecords.stream()
+        Map<Long, List<MonthlyScoreRecord>> recordsByEvaluator = allRecords.stream()
                 .collect(Collectors.groupingBy(MonthlyScoreRecord::getLeaderUserId));
 
+        // 3. 构建全维度考评人员清单（含中心主要领导、分管领导、其他中心领导、其他部门正职互评、部门副职互评及直属正职）
         List<EvaluatorProgressVO> result = new ArrayList<>();
-        for (MonthlyEvaluator ev : evaluators) {
-            SysUser u = userMap.get(ev.getLeaderUserId());
-            List<MonthlyScoreRecord> records = recordsByLeader.getOrDefault(ev.getLeaderUserId(), Collections.emptyList());
 
-            String status = "NOT_STARTED";
-            LocalDateTime submittedAt = null;
+        // A. 中心领导（中心主要领导与中心领导）
+        List<SysUser> centerLeaders = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                .in(SysUser::getPositionCategory, Arrays.asList("PRIMARY_LEADER", "CENTER_LEADER"))
+                .eq(SysUser::getStatus, 1)
+                .orderByAsc(SysUser::getId));
 
-            if (!records.isEmpty()) {
-                boolean allSubmitted = records.size() == examineeCount && records.stream().allMatch(r -> "SUBMITTED".equals(r.getStatus()));
-                if (allSubmitted) {
-                    status = "SUBMITTED";
-                    submittedAt = records.get(0).getSubmittedAt();
-                } else {
-                    status = "DRAFT";
+        for (SysUser cl : centerLeaders) {
+            String roleType = "PRIMARY_LEADER".equalsIgnoreCase(cl.getPositionCategory()) ? "PRIMARY_LEADER" : "CENTER_LEADER";
+            String roleName = "PRIMARY_LEADER".equalsIgnoreCase(cl.getPositionCategory()) ? "中心主要领导" : "中心领导";
+            int targetCount = examinees.size();
+            String targetDesc = "全量参评 " + targetCount + " 人";
+            result.add(buildEvaluatorProgress(cl, roleType, roleName, targetCount, targetDesc, recordsByEvaluator.get(cl.getId())));
+        }
+
+        // B. 针对正职考核 (DEPT_HEAD)：加入部门正职互评考评人
+        if ("DEPT_HEAD".equalsIgnoreCase(category)) {
+            // 所有参评的部门正职进行互评（打除自己以外的其他正职）
+            for (MonthlyExaminee ex : examinees) {
+                SysUser headUser = examineeUserMap.get(ex.getExamineeUserId());
+                if (headUser == null) continue;
+                int targetCount = Math.max(0, examinees.size() - 1);
+                String targetDesc = "正职互评 " + targetCount + " 人";
+                result.add(buildEvaluatorProgress(headUser, "DEPT_HEAD_PEER", "部门正职互评", targetCount, targetDesc, recordsByEvaluator.get(headUser.getId())));
+            }
+        } else if ("DEPT_DEPUTY".equalsIgnoreCase(category)) {
+            // C. 针对副职考核 (DEPT_DEPUTY)：
+            // C1. 本部门正职考评（直属正职领导对本科室副职打分）
+            Map<Long, List<SysUser>> deputiesByHeadId = new LinkedHashMap<>();
+            for (MonthlyExaminee ex : examinees) {
+                SysUser depUser = examineeUserMap.get(ex.getExamineeUserId());
+                if (depUser != null && depUser.getDeptHeadId() != null) {
+                    deputiesByHeadId.computeIfAbsent(depUser.getDeptHeadId(), k -> new ArrayList<>()).add(depUser);
                 }
             }
 
-            result.add(EvaluatorProgressVO.builder()
-                    .userId(ev.getLeaderUserId())
-                    .realName(u != null ? u.getRealName() : "未知领导")
-                    .department(u != null ? u.getDepartment() : "")
-                    .position(u != null ? u.getPosition() : "")
-                    .phone(u != null ? u.getPhone() : "")
-                    .weight(ev.getWeight())
-                    .status(status)
-                    .scoredCount(records.size())
-                    .totalTargetCount(examineeCount.intValue())
-                    .submittedAt(submittedAt)
-                    .build());
+            for (Map.Entry<Long, List<SysUser>> entry : deputiesByHeadId.entrySet()) {
+                SysUser deptHeadUser = userMapper.selectById(entry.getKey());
+                if (deptHeadUser == null) continue;
+                int targetCount = entry.getValue().size();
+                String targetDesc = "本科室副职 " + targetCount + " 人";
+                result.add(buildEvaluatorProgress(deptHeadUser, "DEPT_HEAD", "本部门正职", targetCount, targetDesc, recordsByEvaluator.get(deptHeadUser.getId())));
+            }
+
+            // C2. 部门副职互评考评人（打除自己以外的其他副职）
+            for (MonthlyExaminee ex : examinees) {
+                SysUser deputyUser = examineeUserMap.get(ex.getExamineeUserId());
+                if (deputyUser == null) continue;
+                int targetCount = Math.max(0, examinees.size() - 1);
+                String targetDesc = "副职互评 " + targetCount + " 人";
+                result.add(buildEvaluatorProgress(deputyUser, "DEPT_DEPUTY_PEER", "部门副职互评", targetCount, targetDesc, recordsByEvaluator.get(deputyUser.getId())));
+            }
         }
 
         return result;
+    }
+
+    private EvaluatorProgressVO buildEvaluatorProgress(SysUser u, String roleType, String roleName, int targetCount, String targetDesc, List<MonthlyScoreRecord> records) {
+        String status = "NOT_STARTED";
+        LocalDateTime submittedAt = null;
+        int scoredCount = 0;
+
+        if (!CollectionUtils.isEmpty(records)) {
+            scoredCount = records.size();
+            boolean allSubmitted = scoredCount >= targetCount && records.stream().allMatch(r -> "SUBMITTED".equals(r.getStatus()));
+            if (allSubmitted) {
+                status = "SUBMITTED";
+                submittedAt = records.stream()
+                        .map(MonthlyScoreRecord::getSubmittedAt)
+                        .filter(Objects::nonNull)
+                        .max(Comparator.naturalOrder())
+                        .orElse(null);
+            } else {
+                status = "DRAFT";
+            }
+        }
+
+        return EvaluatorProgressVO.builder()
+                .userId(u.getId())
+                .realName(u.getRealName())
+                .department(u.getDepartment())
+                .position(u.getPosition())
+                .phone(u.getPhone())
+                .evaluatorRoleType(roleType)
+                .evaluatorRoleName(roleName)
+                .status(status)
+                .scoredCount(scoredCount)
+                .totalTargetCount(targetCount)
+                .targetDesc(targetDesc)
+                .submittedAt(submittedAt)
+                .build();
     }
 
     @Override
@@ -792,7 +846,19 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         if (!"IN_PROGRESS".equals(batch.getStatus())) {
             throw new BusinessException(400, "仅支持对进行中的考核批次发送催促提醒");
         }
-        // System registers urge log or dispatch message
+        if (leaderUserId != null) {
+            SysUser u = userMapper.selectById(leaderUserId);
+            log.info("[Urge] 向考评人员 {} (ID: {}) 发送催办提醒: 请尽快完成【{}】评分工作！",
+                    u != null ? u.getRealName() : leaderUserId, leaderUserId, batch.getBatchName());
+        } else {
+            List<EvaluatorProgressVO> progressList = getLeaderProgress(batchId);
+            for (EvaluatorProgressVO p : progressList) {
+                if (!"SUBMITTED".equals(p.getStatus())) {
+                    log.info("[Urge] 批量催办未完成考评人 {} (ID: {}, 角色: {}): 请尽快完成【{}】评分工作！",
+                            p.getRealName(), p.getUserId(), p.getEvaluatorRoleName(), batch.getBatchName());
+                }
+            }
+        }
     }
 
     @Override

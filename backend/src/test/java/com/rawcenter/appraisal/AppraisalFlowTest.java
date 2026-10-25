@@ -56,16 +56,16 @@ public class AppraisalFlowTest {
         Assertions.assertNotNull(adminResp.getToken());
         Assertions.assertEquals("ADMIN", adminResp.getActiveRole());
 
-        // 2. Test Multi-role user login (高锐 13759457660 has both DEPT_DEPUTY, EMPLOYEE and EXPERT)
-        LoginRequest qianReq = new LoginRequest();
-        qianReq.setUsername("13759457660");
-        qianReq.setPassword("password123");
-        LoginResponse qianResp = userService.login(qianReq);
-        Assertions.assertNotNull(qianResp.getToken());
-        Assertions.assertTrue(qianResp.getRoles().size() >= 2);
-        boolean hasExpert = qianResp.getRoles().stream().anyMatch(r -> "EXPERT".equals(r.getRoleCode()));
-        boolean hasEmployee = qianResp.getRoles().stream().anyMatch(r -> "EMPLOYEE".equals(r.getRoleCode()));
-        Assertions.assertTrue(hasExpert && hasEmployee, "13759457660 should have both EXPERT and EMPLOYEE roles");
+        // 2. Test User login for 王昆淼 (13987184673, DEPT_HEAD only, no EMPLOYEE role)
+        LoginRequest wangReq = new LoginRequest();
+        wangReq.setUsername("13987184673");
+        wangReq.setPassword("password123");
+        LoginResponse wangResp = userService.login(wangReq);
+        Assertions.assertNotNull(wangResp.getToken());
+        boolean hasDeptHead = wangResp.getRoles().stream().anyMatch(r -> "DEPT_HEAD".equals(r.getRoleCode()));
+        boolean hasEmployee = wangResp.getRoles().stream().anyMatch(r -> "EMPLOYEE".equals(r.getRoleCode()));
+        Assertions.assertTrue(hasDeptHead, "王昆淼 13987184673 应该拥有 DEPT_HEAD 角色");
+        Assertions.assertFalse(hasEmployee, "王昆淼 13987184673 不应有 EMPLOYEE (普通职工) 身份");
     }
 
     @Test
@@ -123,7 +123,7 @@ public class AppraisalFlowTest {
 
         // Test Leader Progress & Urge
         List<EvaluatorProgressVO> leaderProgress = monthlyService.getLeaderProgress(batchId);
-        Assertions.assertEquals(2, leaderProgress.size());
+        Assertions.assertEquals(5, leaderProgress.size(), "考评人应拓展包含3位中心领导与2位部门正职互评人员");
         monthlyService.urgeLeader(batchId, 3L);
 
         // 3. Leader 1 (陈剑, id=3) Scores
@@ -243,7 +243,7 @@ public class AppraisalFlowTest {
                 .userId(9L)
                 .username("13987184673")
                 .realName("王昆淼")
-                .activeRole("EMPLOYEE")
+                .activeRole("DEPT_HEAD")
                 .build());
         Assertions.assertThrows(BusinessException.class, () -> monthlyService.getExamineePersonalResult(batchId));
 
@@ -261,7 +261,7 @@ public class AppraisalFlowTest {
                 .userId(9L)
                 .username("13987184673")
                 .realName("王昆淼")
-                .activeRole("EMPLOYEE")
+                .activeRole("DEPT_HEAD")
                 .build());
 
         ExamineePersonalResultVO personalResult = monthlyService.getExamineePersonalResult(batchId);

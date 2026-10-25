@@ -131,7 +131,10 @@ export interface EvaluatorProgressVO {
   department: string;
   position: string;
   phone: string;
-  weight: number;
+  weight?: number;
+  evaluatorRoleType?: string;
+  evaluatorRoleName?: string;
+  targetDesc?: string;
   status: 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED';
   scoredCount: number;
   totalTargetCount: number;

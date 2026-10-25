@@ -56,15 +56,15 @@ const { Text } = Typography;
 const DEFAULT_HEAD_ROLE_WEIGHTS: RoleWeightItem[] = [
   { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导 (陈剑主任)', weight: 25, sortOrder: 1 },
   { roleCategory: 'SUPERVISOR_LEADER', roleName: '分管领导 (对应部门领导)', weight: 35, sortOrder: 2 },
-  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导 (其余4位领导均分)', weight: 15, sortOrder: 3 },
-  { roleCategory: 'PEER_HEAD', roleName: '部门正职互评 (其余10位正职均分)', weight: 25, sortOrder: 4 },
+  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导 (其余领导均分)', weight: 15, sortOrder: 3 },
+  { roleCategory: 'PEER_HEAD', roleName: '部门正职互评 (其余正职均分)', weight: 25, sortOrder: 4 },
 ];
 
 const DEFAULT_DEPUTY_ROLE_WEIGHTS: RoleWeightItem[] = [
   { roleCategory: 'SUPERVISOR_LEADER', roleName: '中心分管领导 (对应部门领导)', weight: 35, sortOrder: 1 },
-  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导 (其余5位领导均分)', weight: 20, sortOrder: 2 },
+  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导 (其余领导均分)', weight: 20, sortOrder: 2 },
   { roleCategory: 'DEPT_HEAD', roleName: '本部门正职 (直属正职领导)', weight: 30, sortOrder: 3 },
-  { roleCategory: 'PEER_DEPUTY', roleName: '部门副职互评 (其余11位副职均分)', weight: 15, sortOrder: 4 },
+  { roleCategory: 'PEER_DEPUTY', roleName: '部门副职互评 (其余副职均分)', weight: 15, sortOrder: 4 },
 ];
 
 export const MonthlyAdminBatchesPage: React.FC = () => {
@@ -289,25 +289,28 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
       },
     },
     {
-      title: '领导进度',
+      title: '全员考评进度',
       key: 'progress',
-      width: 160,
-      render: (_: any, record: MonthlyBatchVO) => (
-        <Button
-          type="link"
-          size="small"
-          style={{ padding: 0 }}
-          onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName })}
-        >
-          {record.submittedLeaderCount} / {record.leaderCount} 人提交
-          <Tag
-            color={record.submittedLeaderCount === record.leaderCount ? 'success' : 'processing'}
-            style={{ marginLeft: 6, cursor: 'pointer' }}
+      width: 170,
+      render: (_: any, record: MonthlyBatchVO) => {
+        const isComplete = record.leaderCount > 0 && record.submittedLeaderCount === record.leaderCount;
+        return (
+          <Button
+            type="link"
+            size="small"
+            style={{ padding: 0 }}
+            onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName })}
           >
-            进度与催促
-          </Tag>
-        </Button>
-      ),
+            {record.submittedLeaderCount} / {record.leaderCount} 考评人
+            <Tag
+              color={isComplete ? 'success' : 'processing'}
+              style={{ marginLeft: 6, cursor: 'pointer' }}
+            >
+              进度与催促
+            </Tag>
+          </Button>
+        );
+      },
     },
     {
       title: '被考核人数',
@@ -505,8 +508,12 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
                   }}
                   buttonStyle="solid"
                 >
-                  <Radio.Button value="DEPT_HEAD">部门正职考核（11人）</Radio.Button>
-                  <Radio.Button value="DEPT_DEPUTY">部门副职考核（12人）</Radio.Button>
+                  <Radio.Button value="DEPT_HEAD">
+                    部门正职考核（{examineeCandidates.filter((u) => u.positionCategory === 'DEPT_HEAD').length}人）
+                  </Radio.Button>
+                  <Radio.Button value="DEPT_DEPUTY">
+                    部门副职考核（{examineeCandidates.filter((u) => u.positionCategory === 'DEPT_DEPUTY').length}人）
+                  </Radio.Button>
                 </Radio.Group>
               </Form.Item>
             </Col>

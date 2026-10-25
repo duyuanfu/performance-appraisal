@@ -68,8 +68,24 @@ public class DatabaseInitializer implements CommandLineRunner {
                     "UNIQUE KEY uk_batch_role_category (batch_id, role_category)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='月度考核角色类别权重配置表'");
 
-            // 7. 清理可能残留的 V1 测试临时旧账号，确保仅保留 31 位中心人员与 2 位管理员
+            // 7. 清理可能残留的 V1 测试临时旧账号
             stmt.execute("DELETE FROM sys_user WHERE username IN ('leader_zhang', 'expert_wang', 'expert_zhao', 'expert_sun', 'dept_qian', 'dept_zhou', 'dept_wu', 'dept_zheng')");
+
+            // 8. 严格对齐《评审管理系统相关.xlsx》测试账号配置，精简保留 11 位测试人员 + 2 位管理员
+            stmt.execute("DELETE FROM sys_user WHERE username NOT IN (" +
+                    "'admin', 'sys_admin', " +
+                    "'13908866003', '13888952359', '13888279030', " + // 3位中心领导: 陈剑, 施文萃, 邱晔
+                    "'13987184673', '13888837073', '15912553435', " + // 3位部门正职: 王昆淼, 张玉丰, 李正兵
+                    "'15208773024', '18687778502', '13529376500', " + // 3位部门副职: 田阳阳, 陈超, 张燕
+                    "'13085371368', '17787141508'" +                   // 2位评审专家: 徐济仓, 刘海业
+                    ")");
+
+            // 9. 清除王昆淼及正职、副职人员多余的普通职工 (EMPLOYEE) 角色映射，确保身份单一清晰
+            stmt.execute("DELETE FROM sys_user_role WHERE role_id = (SELECT id FROM sys_role WHERE role_code = 'EMPLOYEE') " +
+                    "AND user_id IN (SELECT id FROM sys_user WHERE position_category IN ('DEPT_HEAD', 'DEPT_DEPUTY', 'PRIMARY_LEADER', 'CENTER_LEADER', 'EXPERT'))");
+
+            // 10. 清理残留的用户角色映射孤立数据
+            stmt.execute("DELETE FROM sys_user_role WHERE user_id NOT IN (SELECT id FROM sys_user)");
 
             log.info("[DatabaseInitializer] 数据库表结构平滑升级检查完成！");
         } catch (Exception e) {
