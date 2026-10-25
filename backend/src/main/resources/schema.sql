@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS appraisal_metric (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考核指标项表';
 
 -- 4. 月度绩效考核配置与打分表
+CREATE TABLE IF NOT EXISTS monthly_role_weight (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    batch_id BIGINT NOT NULL COMMENT '批次ID',
+    role_category VARCHAR(32) NOT NULL COMMENT '角色分类: PRIMARY_LEADER, SUPERVISOR_LEADER, OTHER_LEADER, DEPT_HEAD, PEER_HEAD, PEER_DEPUTY',
+    role_name VARCHAR(64) NOT NULL COMMENT '角色名称',
+    weight DECIMAL(10,4) NOT NULL DEFAULT 25.0000 COMMENT '角色权重百分比',
+    sort_order INT NOT NULL DEFAULT 1 COMMENT '排序序号',
+    UNIQUE KEY uk_batch_role_category (batch_id, role_category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='月度考核角色类别权重配置表';
+
 CREATE TABLE IF NOT EXISTS monthly_evaluator (
     id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     batch_id BIGINT NOT NULL COMMENT '批次ID',

@@ -27,10 +27,10 @@ public class MonthlyBatchSaveDTO {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime endTime;
 
-    @NotEmpty(message = "请配置评分领导及权重")
     private List<LeaderWeightDTO> leaders;
 
-    @NotEmpty(message = "请选择参评被考核人员")
+    private List<RoleWeightDTO> roleWeights;
+
     private List<Long> examineeUserIds;
 
     @NotEmpty(message = "请配置考核指标")
@@ -40,5 +40,13 @@ public class MonthlyBatchSaveDTO {
     public static class LeaderWeightDTO {
         private Long leaderUserId;
         private BigDecimal weight;
+    }
+
+    @Data
+    public static class RoleWeightDTO {
+        private String roleCategory; // PRIMARY_LEADER, SUPERVISOR_LEADER, OTHER_LEADER, DEPT_HEAD, PEER_HEAD, PEER_DEPUTY
+        private String roleName;
+        private BigDecimal weight;
+        private Integer sortOrder;
     }
 }

@@ -39,6 +39,7 @@ import {
   getCandidateExamineesApi,
   MonthlyBatchVO,
   MonthlyBatchSaveDTO,
+  RoleWeightItem,
 } from '../../api/monthly';
 import { listUsersApi } from '../../api/user';
 import { UserVO } from '../../api/auth';
@@ -51,6 +52,20 @@ import { Popconfirm } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
+
+const DEFAULT_HEAD_ROLE_WEIGHTS: RoleWeightItem[] = [
+  { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导 (陈剑主任)', weight: 25, sortOrder: 1 },
+  { roleCategory: 'SUPERVISOR_LEADER', roleName: '分管领导 (对应部门领导)', weight: 35, sortOrder: 2 },
+  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导 (其余4位领导均分)', weight: 15, sortOrder: 3 },
+  { roleCategory: 'PEER_HEAD', roleName: '部门正职互评 (其余10位正职均分)', weight: 25, sortOrder: 4 },
+];
+
+const DEFAULT_DEPUTY_ROLE_WEIGHTS: RoleWeightItem[] = [
+  { roleCategory: 'SUPERVISOR_LEADER', roleName: '中心分管领导 (对应部门领导)', weight: 35, sortOrder: 1 },
+  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导 (其余5位领导均分)', weight: 20, sortOrder: 2 },
+  { roleCategory: 'DEPT_HEAD', roleName: '本部门正职 (直属正职领导)', weight: 30, sortOrder: 3 },
+  { roleCategory: 'PEER_DEPUTY', roleName: '部门副职互评 (其余11位副职均分)', weight: 15, sortOrder: 4 },
+];
 
 export const MonthlyAdminBatchesPage: React.FC = () => {
   const { activeRole } = useAuth();
@@ -67,11 +82,8 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [targetCategory, setTargetCategory] = useState<'DEPT_HEAD' | 'DEPT_DEPUTY'>('DEPT_HEAD');
   const [relaunchBatchId, setRelaunchBatchId] = useState<number | null>(null);
-  const [leaders, setLeaders] = useState<UserVO[]>([]);
+  const [roleWeights, setRoleWeights] = useState<RoleWeightItem[]>(DEFAULT_HEAD_ROLE_WEIGHTS);
   const [examineeCandidates, setExamineeCandidates] = useState<UserVO[]>([]);
-  const [selectedLeaderWeights, setSelectedLeaderWeights] = useState<
-    { leaderUserId: number; weight: number }[]
-  >([]);
   const [metrics, setMetrics] = useState<MetricItem[]>([]);
   const [form] = Form.useForm();
 
@@ -86,11 +98,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
   };
 
   const loadUsers = async () => {
-    const [allLeaders, allExaminees] = await Promise.all([
-      listUsersApi({ roleCode: 'LEADER' }),
-      getCandidateExamineesApi(),
-    ]);
-    setLeaders(allLeaders);
+    const allExaminees = await getCandidateExamineesApi();
     setExamineeCandidates(allExaminees);
   };
 
@@ -102,27 +110,13 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
   const handleOpenCreateModal = async () => {
     form.resetFields();
     setRelaunchBatchId(null);
-    // Default default metrics for monthly
     const defaultMetrics = await getDefaultTemplatesApi('MONTHLY');
     setMetrics(defaultMetrics);
 
-    // Default select all leaders with equal weights totaling 100
-    if (leaders.length > 0) {
-      const perWeight = Number((100 / leaders.length).toFixed(4));
-      const weights = leaders.map((l, idx) => ({
-        leaderUserId: l.id,
-        weight: idx === leaders.length - 1 ? 100 - perWeight * (leaders.length - 1) : perWeight,
-      }));
-      setSelectedLeaderWeights(weights);
-      form.setFieldsValue({
-        leaderIds: leaders.map((l) => l.id),
-      });
-    } else {
-      setSelectedLeaderWeights([]);
-    }
-
     const initialCat = 'DEPT_HEAD';
     setTargetCategory(initialCat);
+    setRoleWeights(DEFAULT_HEAD_ROLE_WEIGHTS);
+
     form.setFieldsValue({
       appraisalPeriod: dayjs(),
       batchName: `${dayjs().format('YYYY年M月')}内设部门正职绩效考核`,
@@ -150,18 +144,19 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
       : batchMetrics;
     setMetrics(activeMetrics);
 
-    const weights = batchSummary.leaders.map((l: any) => ({
-      leaderUserId: l.leaderUserId,
-      weight: l.weight,
-    }));
-    setSelectedLeaderWeights(weights);
+    const batchCat = (batch.category as any) || 'DEPT_HEAD';
+    setTargetCategory(batchCat);
+    if (batch.roleWeights && batch.roleWeights.length > 0) {
+      setRoleWeights(batch.roleWeights);
+    } else {
+      setRoleWeights(batchCat === 'DEPT_DEPUTY' ? DEFAULT_DEPUTY_ROLE_WEIGHTS : DEFAULT_HEAD_ROLE_WEIGHTS);
+    }
 
     const examineeIds = batchSummary.rows.map((r: any) => r.examineeUserId);
 
     form.setFieldsValue({
       batchName: `${batch.batchName} (重新发起)`,
       appraisalPeriod: dayjs(batch.appraisalPeriod),
-      leaderIds: weights.map((w: any) => w.leaderUserId),
       examineeUserIds: examineeIds.length > 0 ? examineeIds : examineeCandidates.map((u) => u.id),
       dateRange: [dayjs(), dayjs().add(7, 'day')],
     });
@@ -169,40 +164,21 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
     setCreateModalVisible(true);
   };
 
-  const handleLeaderSelectChange = (leaderIds: number[]) => {
-    const existingMap = new Map(selectedLeaderWeights.map((w) => [w.leaderUserId, w.weight]));
-    const count = leaderIds.length;
-    const defaultWeight = count > 0 ? Number((100 / count).toFixed(4)) : 0;
-
-    const newWeights = leaderIds.map((id, idx) => ({
-      leaderUserId: id,
-      weight: existingMap.has(id)
-        ? existingMap.get(id)!
-        : idx === count - 1
-        ? 100 - defaultWeight * (count - 1)
-        : defaultWeight,
-    }));
-    setSelectedLeaderWeights(newWeights);
-  };
-
-  const handleLeaderWeightChange = (leaderUserId: number, weight: number | null) => {
-    setSelectedLeaderWeights((prev) =>
-      prev.map((w) => (w.leaderUserId === leaderUserId ? { ...w, weight: weight || 0 } : w))
+  const handleRoleWeightChange = (category: string, weight: number | null) => {
+    setRoleWeights((prev) =>
+      prev.map((rw) => (rw.roleCategory === category ? { ...rw, weight: weight || 0 } : rw))
     );
   };
 
-  const totalLeaderWeight = selectedLeaderWeights.reduce(
-    (acc, cur) => acc + (Number(cur.weight) || 0),
-    0
-  );
-  const isLeaderWeightValid = Math.abs(totalLeaderWeight - 100) < 0.0001;
+  const totalRoleWeight = roleWeights.reduce((acc, cur) => acc + (Number(cur.weight) || 0), 0);
+  const isRoleWeightValid = Math.abs(totalRoleWeight - 100) < 0.0001;
 
   const handleCreateSubmit = async () => {
     try {
       const values = await form.validateFields();
 
-      if (!isLeaderWeightValid) {
-        message.error(`评分领导权重合计必须等于 100.0000%（当前为 ${totalLeaderWeight.toFixed(4)}%）`);
+      if (!isRoleWeightValid) {
+        message.error(`考评主体角色权重合计必须等于 100.0000%（当前为 ${totalRoleWeight.toFixed(4)}%）`);
         return;
       }
 
@@ -235,7 +211,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
         appraisalPeriod: periodStr,
         startTime: values.dateRange?.[0] ? dayjs(values.dateRange[0]).format('YYYY-MM-DD HH:mm:ss') : undefined,
         endTime: values.dateRange?.[1] ? dayjs(values.dateRange[1]).format('YYYY-MM-DD HH:mm:ss') : undefined,
-        leaders: selectedLeaderWeights,
+        roleWeights: roleWeights,
         examineeUserIds: values.examineeUserIds,
         metrics: metrics,
       };
@@ -515,6 +491,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
                   onChange={(e) => {
                     const newCat = e.target.value;
                     setTargetCategory(newCat);
+                    setRoleWeights(newCat === 'DEPT_DEPUTY' ? DEFAULT_DEPUTY_ROLE_WEIGHTS : DEFAULT_HEAD_ROLE_WEIGHTS);
                     const currentPeriod = form.getFieldValue('appraisalPeriod');
                     const month = (currentPeriod && dayjs(currentPeriod).isValid())
                       ? dayjs(currentPeriod).format('YYYY年M月')
@@ -593,63 +570,43 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
           </Row>
 
           <Divider orientation="left" style={{ margin: '12px 0' }}>
-            1. 评分领导及权重配置
+            1. 考评主体角色及权重配置（满分 100% 校验）
           </Divider>
 
-          <Form.Item
-            name="leaderIds"
-            label="选择参加打分的中心领导"
-            rules={[{ required: true, message: '请至少选择一位中心领导' }]}
-          >
-            <Select
-              mode="multiple"
-              placeholder="选择中心领导"
-              onChange={handleLeaderSelectChange}
-            >
-              {leaders.map((l) => (
-                <Select.Option key={l.id} value={l.id}>
-                  {l.realName} ({l.department})
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          {selectedLeaderWeights.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ marginBottom: 8 }}>
-                <Text strong>领导权重分配：</Text>
-                {isLeaderWeightValid ? (
-                  <Tag color="success" style={{ marginLeft: 8 }}>
-                    合计：{totalLeaderWeight.toFixed(4)}%（已满足100%）
-                  </Tag>
-                ) : (
-                  <Tag color="error" style={{ marginLeft: 8 }}>
-                    合计：{totalLeaderWeight.toFixed(4)}%（相差 {(100 - totalLeaderWeight).toFixed(4)}%）
-                  </Tag>
-                )}
-              </div>
-              <Row gutter={[12, 12]}>
-                {selectedLeaderWeights.map((w) => {
-                  const leaderUser = leaders.find((l) => l.id === w.leaderUserId);
-                  return (
-                    <Col key={w.leaderUserId} span={8}>
-                      <Space>
-                        <span style={{ width: 90 }}>{leaderUser?.realName}：</span>
-                        <InputNumber
-                          value={w.weight}
-                          min={0.0001}
-                          max={100}
-                          precision={4}
-                          addonAfter="%"
-                          onChange={(v) => handleLeaderWeightChange(w.leaderUserId, v)}
-                        />
-                      </Space>
-                    </Col>
-                  );
-                })}
-              </Row>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center' }}>
+              <Text strong>主体角色权重分配：</Text>
+              {isRoleWeightValid ? (
+                <Tag color="success" style={{ marginLeft: 8 }}>
+                  合计：{totalRoleWeight.toFixed(4)}%（已满足100%）
+                </Tag>
+              ) : (
+                <Tag color="error" style={{ marginLeft: 8 }}>
+                  合计：{totalRoleWeight.toFixed(4)}%（相差 {(100 - totalRoleWeight).toFixed(4)}%）
+                </Tag>
+              )}
             </div>
-          )}
+            <Row gutter={[16, 16]}>
+              {roleWeights.map((rw) => (
+                <Col key={rw.roleCategory} span={12}>
+                  <Card size="small" bodyStyle={{ padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text strong style={{ fontSize: 13 }}>{rw.roleName}</Text>
+                      <InputNumber
+                        value={rw.weight}
+                        min={0}
+                        max={100}
+                        precision={4}
+                        addonAfter="%"
+                        style={{ width: 140 }}
+                        onChange={(v) => handleRoleWeightChange(rw.roleCategory, v)}
+                      />
+                    </div>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+          </div>
 
           <Divider orientation="left" style={{ margin: '12px 0' }}>
             2. 被考核人员选择（{targetCategory === 'DEPT_DEPUTY' ? '部门副职' : '部门正职'}）

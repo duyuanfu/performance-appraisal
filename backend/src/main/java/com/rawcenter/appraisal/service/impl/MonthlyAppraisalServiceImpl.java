@@ -41,6 +41,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
     private final MonthlyScoreDetailMapper scoreDetailMapper;
     private final SysUserMapper userMapper;
     private final AppraisalMetricMapper metricMapper;
+    private final MonthlyRoleWeightMapper roleWeightMapper;
     private final MetricService metricService;
 
     @Override
@@ -154,6 +155,20 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         Long examineeCount = examineeMapper.selectCount(new LambdaQueryWrapper<MonthlyExaminee>()
                 .eq(MonthlyExaminee::getBatchId, b.getId()));
 
+        List<MonthlyRoleWeight> savedRoleWeights = roleWeightMapper.selectList(new LambdaQueryWrapper<MonthlyRoleWeight>()
+                .eq(MonthlyRoleWeight::getBatchId, b.getId())
+                .orderByAsc(MonthlyRoleWeight::getSortOrder));
+
+        List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeightDTOs = savedRoleWeights.stream()
+                .map(rw -> {
+                    MonthlyBatchSaveDTO.RoleWeightDTO r = new MonthlyBatchSaveDTO.RoleWeightDTO();
+                    r.setRoleCategory(rw.getRoleCategory());
+                    r.setRoleName(rw.getRoleName());
+                    r.setWeight(rw.getWeight());
+                    r.setSortOrder(rw.getSortOrder());
+                    return r;
+                }).collect(Collectors.toList());
+
         return MonthlyBatchVO.builder()
                 .id(b.getId())
                 .batchName(b.getBatchName())
@@ -166,6 +181,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .leaderCount(leaderCount.intValue())
                 .examineeCount(examineeCount.intValue())
                 .isExpired(b.getEndTime() != null && now.isAfter(b.getEndTime()))
+                .roleWeights(roleWeightDTOs)
                 .createdAt(b.getCreatedAt())
                 .build();
     }
@@ -173,19 +189,35 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void saveMonthlyBatch(MonthlyBatchSaveDTO dto) {
-        BigDecimal totalLeaderWeight = BigDecimal.ZERO;
-        for (MonthlyBatchSaveDTO.LeaderWeightDTO l : dto.getLeaders()) {
-            if (l.getWeight() == null || l.getWeight().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new BusinessException(400, "领导打分权重必须大于0");
-            }
-            totalLeaderWeight = totalLeaderWeight.add(l.getWeight());
-        }
-        BigDecimal weightDiff = totalLeaderWeight.subtract(new BigDecimal("100.0000")).abs();
-        if (weightDiff.compareTo(new BigDecimal("0.0001")) > 0) {
-            throw new BusinessException(400, "领导打分权重合计必须为100%，当前为：" + totalLeaderWeight.stripTrailingZeros().toPlainString() + "%");
-        }
-
         String category = StringUtils.hasText(dto.getCategory()) ? dto.getCategory() : "DEPT_HEAD";
+
+        // 1. 考评角色权重校验与默认装配
+        List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeights = dto.getRoleWeights();
+        if (CollectionUtils.isEmpty(roleWeights)) {
+            roleWeights = new ArrayList<>();
+            if ("DEPT_DEPUTY".equalsIgnoreCase(category)) {
+                roleWeights.add(createRoleWeightDTO("SUPERVISOR_LEADER", "中心分管领导", new BigDecimal("35.0000"), 1));
+                roleWeights.add(createRoleWeightDTO("OTHER_LEADER", "其他中心领导", new BigDecimal("20.0000"), 2));
+                roleWeights.add(createRoleWeightDTO("DEPT_HEAD", "本部门正职", new BigDecimal("30.0000"), 3));
+                roleWeights.add(createRoleWeightDTO("PEER_DEPUTY", "部门副职互评", new BigDecimal("15.0000"), 4));
+            } else {
+                roleWeights.add(createRoleWeightDTO("PRIMARY_LEADER", "中心主要领导", new BigDecimal("25.0000"), 1));
+                roleWeights.add(createRoleWeightDTO("SUPERVISOR_LEADER", "分管领导", new BigDecimal("35.0000"), 2));
+                roleWeights.add(createRoleWeightDTO("OTHER_LEADER", "其他中心领导", new BigDecimal("15.0000"), 3));
+                roleWeights.add(createRoleWeightDTO("PEER_HEAD", "部门正职互评", new BigDecimal("25.0000"), 4));
+            }
+        } else {
+            BigDecimal totalRoleWeight = BigDecimal.ZERO;
+            for (MonthlyBatchSaveDTO.RoleWeightDTO rw : roleWeights) {
+                if (rw.getWeight() == null || rw.getWeight().compareTo(BigDecimal.ZERO) < 0) {
+                    throw new BusinessException(400, "角色【" + rw.getRoleName() + "】权重不能小于0");
+                }
+                totalRoleWeight = totalRoleWeight.add(rw.getWeight());
+            }
+            if (totalRoleWeight.subtract(new BigDecimal("100.0000")).abs().compareTo(new BigDecimal("0.0001")) > 0) {
+                throw new BusinessException(400, "考评主体角色权重合计必须等于100%，当前为：" + totalRoleWeight.stripTrailingZeros().toPlainString() + "%");
+            }
+        }
 
         // 校验唯一性：同一月份正职与副职各可建立独立流程，批次名称不可重复
         Long existingBatchCount = batchMapper.selectCount(new LambdaQueryWrapper<AppraisalBatch>()
@@ -234,22 +266,49 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         // 1. Save Metrics
         metricService.saveBatchMetrics(batchId, dto.getMetrics());
 
-        // 2. Save Evaluators
-        evaluatorMapper.delete(new LambdaQueryWrapper<MonthlyEvaluator>().eq(MonthlyEvaluator::getBatchId, batchId));
-        for (MonthlyBatchSaveDTO.LeaderWeightDTO l : dto.getLeaders()) {
-            evaluatorMapper.insert(MonthlyEvaluator.builder()
+        // 2. Save Role Category Weights
+        roleWeightMapper.delete(new LambdaQueryWrapper<MonthlyRoleWeight>().eq(MonthlyRoleWeight::getBatchId, batchId));
+        int rOrder = 1;
+        for (MonthlyBatchSaveDTO.RoleWeightDTO rw : roleWeights) {
+            roleWeightMapper.insert(MonthlyRoleWeight.builder()
                     .batchId(batchId)
-                    .leaderUserId(l.getLeaderUserId())
-                    .weight(l.getWeight())
+                    .roleCategory(rw.getRoleCategory())
+                    .roleName(rw.getRoleName())
+                    .weight(rw.getWeight())
+                    .sortOrder(rw.getSortOrder() != null ? rw.getSortOrder() : rOrder++)
                     .build());
         }
 
-        // 3. Save Examinees: exclude center leaders and review experts
+        // 3. Save Evaluators: 支持自动装配或手动指定
+        evaluatorMapper.delete(new LambdaQueryWrapper<MonthlyEvaluator>().eq(MonthlyEvaluator::getBatchId, batchId));
+        if (!CollectionUtils.isEmpty(dto.getLeaders())) {
+            for (MonthlyBatchSaveDTO.LeaderWeightDTO l : dto.getLeaders()) {
+                evaluatorMapper.insert(MonthlyEvaluator.builder()
+                        .batchId(batchId)
+                        .leaderUserId(l.getLeaderUserId())
+                        .weight(l.getWeight() != null ? l.getWeight() : new BigDecimal("50.0000"))
+                        .build());
+            }
+        } else {
+            // 自动拉入 6 位中心领导
+            List<SysUser> centerLeaders = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                    .in(SysUser::getPositionCategory, Arrays.asList("PRIMARY_LEADER", "CENTER_LEADER"))
+                    .eq(SysUser::getStatus, 1));
+            for (SysUser cl : centerLeaders) {
+                evaluatorMapper.insert(MonthlyEvaluator.builder()
+                        .batchId(batchId)
+                        .leaderUserId(cl.getId())
+                        .weight(new BigDecimal("50.0000"))
+                        .build());
+            }
+        }
+
+        // 4. Save Examinees: exclude center leaders and review experts
         examineeMapper.delete(new LambdaQueryWrapper<MonthlyExaminee>().eq(MonthlyExaminee::getBatchId, batchId));
         List<Long> targetUserIds = dto.getExamineeUserIds();
         if (CollectionUtils.isEmpty(targetUserIds)) {
-            // Auto default to all candidates if empty
-            targetUserIds = listCandidateExaminees().stream().map(UserVO::getId).collect(Collectors.toList());
+            // Auto default to all candidates of this category if empty
+            targetUserIds = listCandidateExaminees(category).stream().map(UserVO::getId).collect(Collectors.toList());
         }
 
         List<SysUser> examineeUsers = userMapper.selectBatchIds(targetUserIds).stream()
@@ -266,6 +325,15 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .position(u.getPosition())
                     .build());
         }
+    }
+
+    private MonthlyBatchSaveDTO.RoleWeightDTO createRoleWeightDTO(String category, String name, BigDecimal weight, int order) {
+        MonthlyBatchSaveDTO.RoleWeightDTO dto = new MonthlyBatchSaveDTO.RoleWeightDTO();
+        dto.setRoleCategory(category);
+        dto.setRoleName(name);
+        dto.setWeight(weight);
+        dto.setSortOrder(order);
+        return dto;
     }
 
     @Override
@@ -355,6 +423,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         evaluatorMapper.delete(new LambdaQueryWrapper<MonthlyEvaluator>().eq(MonthlyEvaluator::getBatchId, batchId));
         examineeMapper.delete(new LambdaQueryWrapper<MonthlyExaminee>().eq(MonthlyExaminee::getBatchId, batchId));
         metricMapper.delete(new LambdaQueryWrapper<AppraisalMetric>().eq(AppraisalMetric::getBatchId, batchId));
+        roleWeightMapper.delete(new LambdaQueryWrapper<MonthlyRoleWeight>().eq(MonthlyRoleWeight::getBatchId, batchId));
         batchMapper.deleteById(batchId);
     }
 
@@ -854,6 +923,21 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         List<MonthlySummaryVO.TierSummaryRowVO> headRows = new ArrayList<>();
         List<MonthlySummaryVO.TierSummaryRowVO> deputyRows = new ArrayList<>();
 
+        List<MonthlyRoleWeight> savedRoleWeights = roleWeightMapper.selectList(new LambdaQueryWrapper<MonthlyRoleWeight>()
+                .eq(MonthlyRoleWeight::getBatchId, batchId));
+        Map<String, BigDecimal> rwMap = savedRoleWeights.stream()
+                .collect(Collectors.toMap(MonthlyRoleWeight::getRoleCategory, MonthlyRoleWeight::getWeight, (a, b) -> a));
+
+        BigDecimal wPrimary = rwMap.getOrDefault("PRIMARY_LEADER", new BigDecimal("25.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wSupervisorHead = rwMap.getOrDefault("SUPERVISOR_LEADER", new BigDecimal("35.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wOtherHead = rwMap.getOrDefault("OTHER_LEADER", new BigDecimal("15.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wPeerHead = rwMap.getOrDefault("PEER_HEAD", new BigDecimal("25.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+
+        BigDecimal wSupervisorDeputy = rwMap.getOrDefault("SUPERVISOR_LEADER", new BigDecimal("35.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wOtherDeputy = rwMap.getOrDefault("OTHER_LEADER", new BigDecimal("20.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wDeptHeadDeputy = rwMap.getOrDefault("DEPT_HEAD", new BigDecimal("30.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wPeerDeputy = rwMap.getOrDefault("PEER_DEPUTY", new BigDecimal("15.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+
         for (MonthlyExaminee ex : examinees) {
             SysUser u = examineeUserMap.get(ex.getExamineeUserId());
             if (u == null) continue;
@@ -903,11 +987,11 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .divide(new BigDecimal(peerScores.size()), 4, RoundingMode.HALF_UP);
 
             if ("DEPT_HEAD".equalsIgnoreCase(posCat)) {
-                // 正职: 主要领导25% + 分管领导35% + 其他中心领导15% + 部门正职互评25%
-                BigDecimal headComposite = primaryScore.multiply(new BigDecimal("0.25"))
-                        .add(supervisorScore.multiply(new BigDecimal("0.35")))
-                        .add(otherLeaderAvg.multiply(new BigDecimal("0.15")))
-                        .add(peerAvg.multiply(new BigDecimal("0.25")))
+                // 正职: 主要领导 + 分管领导 + 其他中心领导 + 部门正职互评
+                BigDecimal headComposite = primaryScore.multiply(wPrimary)
+                        .add(supervisorScore.multiply(wSupervisorHead))
+                        .add(otherLeaderAvg.multiply(wOtherHead))
+                        .add(peerAvg.multiply(wPeerHead))
                         .setScale(4, RoundingMode.HALF_UP);
 
                 headRows.add(MonthlySummaryVO.TierSummaryRowVO.builder()
@@ -925,11 +1009,11 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                         .rank(1)
                         .build());
             } else if ("DEPT_DEPUTY".equalsIgnoreCase(posCat)) {
-                // 副职: 中心分管领导35% + 其他中心领导20% + 本部门正职30% + 部门副职互评15%
-                BigDecimal deputyComposite = supervisorScore.multiply(new BigDecimal("0.35"))
-                        .add(otherLeaderAvg.multiply(new BigDecimal("0.20")))
-                        .add(deptHeadScore.multiply(new BigDecimal("0.30")))
-                        .add(peerAvg.multiply(new BigDecimal("0.15")))
+                // 副职: 中心分管领导 + 其他中心领导 + 本部门正职 + 部门副职互评
+                BigDecimal deputyComposite = supervisorScore.multiply(wSupervisorDeputy)
+                        .add(otherLeaderAvg.multiply(wOtherDeputy))
+                        .add(deptHeadScore.multiply(wDeptHeadDeputy))
+                        .add(peerAvg.multiply(wPeerDeputy))
                         .setScale(4, RoundingMode.HALF_UP);
 
                 deputyRows.add(MonthlySummaryVO.TierSummaryRowVO.builder()

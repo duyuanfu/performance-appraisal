@@ -6,6 +6,13 @@ export interface LeaderWeightItem {
   weight: number;
 }
 
+export interface RoleWeightItem {
+  roleCategory: string;
+  roleName: string;
+  weight: number;
+  sortOrder?: number;
+}
+
 export interface MonthlyBatchSaveDTO {
   id?: number;
   batchName: string;
@@ -13,8 +20,9 @@ export interface MonthlyBatchSaveDTO {
   appraisalPeriod: string;
   startTime?: string;
   endTime?: string;
-  leaders: LeaderWeightItem[];
-  examineeUserIds: number[];
+  roleWeights?: RoleWeightItem[];
+  leaders?: LeaderWeightItem[];
+  examineeUserIds?: number[];
   metrics: MetricItem[];
 }
 
@@ -32,6 +40,7 @@ export interface MonthlyBatchVO {
   submittedLeaderCount: number;
   mySubmissionStatus: 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED';
   isExpired: boolean;
+  roleWeights?: RoleWeightItem[];
   createdAt: string;
 }
 

@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import com.rawcenter.appraisal.dto.MonthlyBatchSaveDTO;
 
 @Data
 @Builder
@@ -31,6 +33,7 @@ public class MonthlyBatchVO {
     private Integer submittedLeaderCount;
     private String mySubmissionStatus; // For current leader: NOT_STARTED, DRAFT, SUBMITTED
     private Boolean isExpired;
+    private List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeights;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
