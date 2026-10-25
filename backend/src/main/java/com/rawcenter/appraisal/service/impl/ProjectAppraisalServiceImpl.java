@@ -58,7 +58,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
 
     @Override
     public List<AppraisalBatch> listProjectBatches(String batchType, String status, String keyword) {
-        Long currentUserId = UserContext.getUserId();
         String activeRole = UserContext.get() != null ? UserContext.get().getActiveRole() : null;
 
         LambdaQueryWrapper<AppraisalBatch> wrapper = new LambdaQueryWrapper<AppraisalBatch>()
@@ -598,6 +597,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .build();
     }
 
+    private BigDecimal nz(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
     private String resolveProjectRoleName(String evaluatorPos, Long supervisorId, Long currentUserId) {
         if (supervisorId != null && supervisorId.equals(currentUserId)) {
             return "分管领导";
@@ -944,6 +947,14 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 : userMapper.selectBatchIds(supervisorIds).stream()
                 .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
 
+        List<Long> evaluatorUserIds = allRecords.stream()
+                .map(ProjectScoreRecord::getExpertUserId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, SysUser> evaluatorUserMap = evaluatorUserIds.isEmpty() ? Collections.emptyMap()
+                : userMapper.selectBatchIds(evaluatorUserIds).stream()
+                .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
+
         for (ProjectItem p : projects) {
             Map<Long, BigDecimal> expertScoreMap = new HashMap<>();
             BigDecimal weightedTotal = BigDecimal.ZERO;
@@ -959,11 +970,12 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             }
 
             // Category score collection for multi-tier formulas
-            BigDecimal primaryScore = BigDecimal.ZERO;
-            BigDecimal supervisorScore = BigDecimal.ZERO;
+            BigDecimal primaryScore = null;
+            BigDecimal supervisorScore = null;
             List<BigDecimal> otherLeaderScores = new ArrayList<>();
             List<BigDecimal> headScores = new ArrayList<>();
             List<BigDecimal> expertScoresList = new ArrayList<>();
+            boolean hasTierEvaluators = false;
 
             Long supervisorId = p.getSupervisorId();
             if (supervisorId == null && StringUtils.hasText(p.getDepartment())) {
@@ -980,13 +992,15 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 if (!rec.getProjectId().equals(p.getId())) continue;
                 if (!"SUBMITTED".equals(rec.getStatus())) continue;
 
-                SysUser evUser = userMapper.selectById(rec.getExpertUserId());
+                SysUser evUser = evaluatorUserMap.get(rec.getExpertUserId());
                 if (evUser == null) continue;
                 String pos = evUser.getPositionCategory();
 
                 if ("PRIMARY_LEADER".equalsIgnoreCase(pos)) {
                     primaryScore = rec.getTotalScore();
+                    hasTierEvaluators = true;
                 } else if ("CENTER_LEADER".equalsIgnoreCase(pos)) {
+                    hasTierEvaluators = true;
                     if (supervisorId != null && supervisorId.equals(rec.getExpertUserId())) {
                         supervisorScore = rec.getTotalScore();
                     } else {
@@ -994,40 +1008,37 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     }
                 } else if ("DEPT_HEAD".equalsIgnoreCase(pos)) {
                     headScores.add(rec.getTotalScore());
+                    hasTierEvaluators = true;
                 } else if ("EXPERT".equalsIgnoreCase(pos)) {
                     expertScoresList.add(rec.getTotalScore());
                 }
             }
 
-            BigDecimal otherLeaderAvg = otherLeaderScores.isEmpty() ? BigDecimal.ZERO
+            BigDecimal otherLeaderAvg = otherLeaderScores.isEmpty() ? null
                     : otherLeaderScores.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
                     .divide(new BigDecimal(otherLeaderScores.size()), 4, RoundingMode.HALF_UP);
 
-            BigDecimal headAvg = headScores.isEmpty() ? BigDecimal.ZERO
+            BigDecimal headAvg = headScores.isEmpty() ? null
                     : headScores.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
                     .divide(new BigDecimal(headScores.size()), 4, RoundingMode.HALF_UP);
 
-            BigDecimal expertAvg = expertScoresList.isEmpty() ? BigDecimal.ZERO
+            BigDecimal expertAvg = expertScoresList.isEmpty() ? null
                     : expertScoresList.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
                     .divide(new BigDecimal(expertScoresList.size()), 4, RoundingMode.HALF_UP);
 
             // Compute composite score
             BigDecimal compositeScore = BigDecimal.ZERO;
-            boolean hasTierEvaluators = primaryScore.compareTo(BigDecimal.ZERO) > 0
-                    || supervisorScore.compareTo(BigDecimal.ZERO) > 0
-                    || !otherLeaderScores.isEmpty()
-                    || !headScores.isEmpty();
 
             if (hasTierEvaluators) {
                 // 统一综合得分计算公式（按配置的主体角色权重，默认对齐《需求文档.md》最新规则）：
                 // 综合得分 = (中心主要领导评分×wPrimary + 分管领导评分×wSupervisor + 其他中心领导评分×wOther)×wCenterTotal + 正职评分×wHead + 代表评分(即评审专家)×wExpert
-                BigDecimal centerPart = primaryScore.multiply(wPrimary)
-                        .add(supervisorScore.multiply(wSupervisor))
-                        .add(otherLeaderAvg.multiply(wOther))
+                BigDecimal centerPart = nz(primaryScore).multiply(wPrimary)
+                        .add(nz(supervisorScore).multiply(wSupervisor))
+                        .add(nz(otherLeaderAvg).multiply(wOther))
                         .multiply(wCenterTotal);
                 compositeScore = centerPart
-                        .add(headAvg.multiply(wHead))
-                        .add(expertAvg.multiply(wExpert))
+                        .add(nz(headAvg).multiply(wHead))
+                        .add(nz(expertAvg).multiply(wExpert))
                         .setScale(4, RoundingMode.HALF_UP);
             } else if (totalExpertWeight.compareTo(BigDecimal.ZERO) > 0) {
                 compositeScore = weightedTotal.divide(totalExpertWeight, 4, RoundingMode.HALF_UP);
@@ -1196,11 +1207,11 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     row.add(idx++);
                     row.add(r.getProjectName());
                     row.add(r.getSupervisorName() != null ? r.getSupervisorName() : "");
-                    row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                    row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                    row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                    row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                    row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
+                    row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
+                    row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
+                    row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
+                    row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
                     row.add(r.getScoreCoefficient() != null ? r.getScoreCoefficient().setScale(4, RoundingMode.HALF_UP).toString() : "1.0000");
                     row.add(r.getRank());
@@ -1226,11 +1237,11 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     row.add(idx++);
                     row.add(r.getProjectName());
                     row.add(r.getSupervisorName() != null ? r.getSupervisorName() : "");
-                    row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                    row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                    row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                    row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                    row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
+                    row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
+                    row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
+                    row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
+                    row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
+                    row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
                     row.add(r.getAwardTierName() != null ? r.getAwardTierName() : "未获奖");
                     row.add(r.getRank());

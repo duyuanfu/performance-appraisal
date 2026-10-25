@@ -46,8 +46,6 @@ import {
   ProjectItemVO,
   ProjectRoleWeightItem,
 } from '../../api/project';
-import { listUsersApi } from '../../api/user';
-import { UserVO } from '../../api/auth';
 import { useAuth } from '../../context/AuthContext';
 import { MetricItem, getDefaultTemplatesApi } from '../../api/metric';
 import { MetricConfigTable } from '../../components/MetricConfig/MetricConfigTable';
@@ -94,7 +92,6 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
   // Batch create / relaunch modal state
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [relaunchBatchId, setRelaunchBatchId] = useState<number | null>(null);
-  const [experts, setExperts] = useState<UserVO[]>([]);
   const [mainRoleWeights, setMainRoleWeights] = useState<ProjectRoleWeightItem[]>(DEFAULT_MAIN_ROLE_WEIGHTS);
   const [leaderSubWeights, setLeaderSubWeights] = useState<ProjectRoleWeightItem[]>(DEFAULT_LEADER_SUB_WEIGHTS);
   const [metrics, setMetrics] = useState<MetricItem[]>([]);
@@ -115,14 +112,8 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
     }
   };
 
-  const loadExperts = async () => {
-    const list = await listUsersApi({ roleCode: 'EXPERT' });
-    setExperts(list);
-  };
-
   useEffect(() => {
     loadBatches();
-    loadExperts();
   }, [batchType]);
 
   const handleOpenCreateModal = async () => {
@@ -138,7 +129,6 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
     form.setFieldsValue({
       appraisalPeriod: dayjs(),
       batchName: `${dayjs().year()}年度原料中心${isSpecialInnovation ? '专项与创新任务' : '目标绩效任务'}评审`,
-      expertIds: experts.map((e) => e.id),
       dateRange: [dayjs(), dayjs().add(14, 'day')],
     });
 
@@ -173,12 +163,9 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
       setLeaderSubWeights(DEFAULT_LEADER_SUB_WEIGHTS);
     }
 
-    const expertIds = summary.experts.map((e) => e.expertUserId);
-
     form.setFieldsValue({
       batchName: `${batch.batchName} (重新发起)`,
       appraisalPeriod: dayjs(batch.appraisalPeriod),
-      expertIds: expertIds.length > 0 ? expertIds : experts.map((e) => e.id),
       dateRange: [dayjs(), dayjs().add(14, 'day')],
     });
 

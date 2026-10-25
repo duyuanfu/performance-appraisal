@@ -79,8 +79,13 @@ export const ExpertEvaluationPage: React.FC = () => {
       });
       setScores(map);
 
-      if (data.projects.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(data.projects[0].projectId);
+      if (data.projects.length > 0) {
+        const stillExists = data.projects.some((p) => p.projectId === selectedProjectId);
+        if (!stillExists) {
+          setSelectedProjectId(data.projects[0].projectId);
+        }
+      } else {
+        setSelectedProjectId(null);
       }
     } finally {
       setLoading(false);
