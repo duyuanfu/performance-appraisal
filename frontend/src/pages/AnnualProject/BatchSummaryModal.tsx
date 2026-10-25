@@ -133,7 +133,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
         ]
       : []),
     {
-      title: '主要领导评分',
+      title: '中心主要领导评分',
       dataIndex: 'primaryLeaderScore',
       key: 'primaryLeaderScore',
       width: 130,
@@ -148,27 +148,42 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
             width: 130,
             render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
           },
+          {
+            title: '其它中心领导评分（其它4位中心领导）',
+            dataIndex: 'otherLeaderScore',
+            key: 'otherLeaderScore',
+            width: 220,
+            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+          },
+          {
+            title: '正职评分',
+            dataIndex: 'headScore',
+            key: 'headScore',
+            width: 120,
+            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+          },
         ]
-      : []),
+      : [
+          {
+            title: '其他中心领导评分（其它5位中心领导）',
+            dataIndex: 'otherLeaderScore',
+            key: 'otherLeaderScore',
+            width: 230,
+            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+          },
+          {
+            title: '正职评分（11位正职）',
+            dataIndex: 'headScore',
+            key: 'headScore',
+            width: 170,
+            render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
+          },
+        ]),
     {
-      title: '其它中心领导评分',
-      dataIndex: 'otherLeaderScore',
-      key: 'otherLeaderScore',
-      width: 150,
-      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
-    },
-    {
-      title: '正职评分',
-      dataIndex: 'headScore',
-      key: 'headScore',
-      width: 130,
-      render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
-    },
-    {
-      title: '代表/专家评分',
+      title: '代表评分（评审专家评分）',
       dataIndex: 'expertScore',
       key: 'expertScore',
-      width: 130,
+      width: 180,
       render: (s: number) => (s ? Number(s).toFixed(4) : '-'),
     },
     {

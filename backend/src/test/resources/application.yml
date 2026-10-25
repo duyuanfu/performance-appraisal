@@ -59,18 +59,18 @@ app:
         weight: 20.0000
         sort-order: 3
     special-innovation:
-      - metric-name: 特色亮点
-        metric-desc: 项目创新性、特色做法与突破亮点
+      - metric-name: 完成度
+        metric-desc: 项目目标达成与实际任务完成程度
         max-score: 100.0000
         weight: 30.0000
         sort-order: 1
-      - metric-name: 产生质效
-        metric-desc: 实际业务成效、管理提升或经济技术效益
+      - metric-name: 完成质量
+        metric-desc: 项目产出质量、标准达成及业务赋能实效
         max-score: 100.0000
         weight: 50.0000
         sort-order: 2
-      - metric-name: 难度系数
-        metric-desc: 技术攻坚难度、协调复杂度与创新风险度
+      - metric-name: 完成时效性
+        metric-desc: 推进节奏、时间节点把控及完成时效
         max-score: 100.0000
         weight: 20.0000
         sort-order: 3

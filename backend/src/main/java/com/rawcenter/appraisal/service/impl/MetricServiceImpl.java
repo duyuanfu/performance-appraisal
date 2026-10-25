@@ -104,9 +104,9 @@ public class MetricServiceImpl implements MetricService {
             templates.add(MetricDTO.builder().metricName("主要业绩").metricDesc("月度重点业绩产出与实际工作成效").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("50.0000")).sortOrder(2).build());
             templates.add(MetricDTO.builder().metricName("团队建设").metricDesc("团队协作配合、作风建设与组织执行力").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(3).build());
         } else if ("SPECIAL_INNOVATION".equalsIgnoreCase(batchType)) {
-            templates.add(MetricDTO.builder().metricName("特色亮点").metricDesc("项目创新性、特色做法与突破亮点").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("30.0000")).sortOrder(1).build());
-            templates.add(MetricDTO.builder().metricName("产生质效").metricDesc("实际业务成效、管理提升或经济技术效益").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("50.0000")).sortOrder(2).build());
-            templates.add(MetricDTO.builder().metricName("难度系数").metricDesc("技术攻坚难度、协调复杂度与创新风险度").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(3).build());
+            templates.add(MetricDTO.builder().metricName("完成度").metricDesc("项目目标达成与实际任务完成程度").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("30.0000")).sortOrder(1).build());
+            templates.add(MetricDTO.builder().metricName("完成质量").metricDesc("项目产出质量、标准达成及业务赋能实效").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("50.0000")).sortOrder(2).build());
+            templates.add(MetricDTO.builder().metricName("完成时效性").metricDesc("推进节奏、时间节点把控及完成时效").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("20.0000")).sortOrder(3).build());
         } else {
             // TARGET_PROJECT & ANNUAL_PROJECT
             templates.add(MetricDTO.builder().metricName("完成度").metricDesc("项目目标达成与实际任务完成程度").maxScore(new BigDecimal("100.0000")).weight(new BigDecimal("30.0000")).sortOrder(1).build());

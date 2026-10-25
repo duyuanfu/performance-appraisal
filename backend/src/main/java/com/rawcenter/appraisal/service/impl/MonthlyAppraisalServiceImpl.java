@@ -1046,10 +1046,10 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 headHeaders.add(List.of("序号"));
                 headHeaders.add(List.of("姓名"));
                 headHeaders.add(List.of("部门"));
-                headHeaders.add(List.of("主要领导 (25%)"));
-                headHeaders.add(List.of("分管领导 (35%)"));
-                headHeaders.add(List.of("其他中心领导均分 (15%)"));
-                headHeaders.add(List.of("部门正职互评均分 (25%)"));
+                headHeaders.add(List.of("主要领导"));
+                headHeaders.add(List.of("分管领导"));
+                headHeaders.add(List.of("其他中心领导(其它4位中心领导）"));
+                headHeaders.add(List.of("部门正职互评（其它10位正职）"));
                 headHeaders.add(List.of("综合得分"));
                 headHeaders.add(List.of("排名"));
 
@@ -1081,10 +1081,10 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 deputyHeaders.add(List.of("序号"));
                 deputyHeaders.add(List.of("姓名"));
                 deputyHeaders.add(List.of("部门"));
-                deputyHeaders.add(List.of("分管领导 (35%)"));
-                deputyHeaders.add(List.of("其他中心领导均分 (20%)"));
-                deputyHeaders.add(List.of("本部门正职 (30%)"));
-                deputyHeaders.add(List.of("部门副职互评均分 (15%)"));
+                deputyHeaders.add(List.of("分管领导"));
+                deputyHeaders.add(List.of("其他中心领导（其它5位中心领导）"));
+                deputyHeaders.add(List.of("部门正职（本部门）"));
+                deputyHeaders.add(List.of("部门副职互评（其它11位副职）"));
                 deputyHeaders.add(List.of("综合得分"));
                 deputyHeaders.add(List.of("排名"));
 

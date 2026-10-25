@@ -988,15 +988,15 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             List<List<Object>> dataList = new ArrayList<>();
 
             if ("TARGET_PROJECT".equalsIgnoreCase(summary.getBatchType())) {
-                // 目标绩效评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 分管领导评分, 其它中心领导评分, 正职评分, 代表评分, 综合得分, 得分系数, 排序
+                // 目标绩效评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 分管领导评分, 其它中心领导评分（其它4位中心领导）, 正职评分, 代表评分（评审专家评分）, 综合得分, 得分系数, 排序
                 head.add(List.of("序号"));
                 head.add(List.of("项目名称"));
                 head.add(List.of("部门"));
                 head.add(List.of("中心主要领导评分"));
                 head.add(List.of("分管领导评分"));
-                head.add(List.of("其它中心领导评分"));
+                head.add(List.of("其它中心领导评分（其它4位中心领导）"));
                 head.add(List.of("正职评分"));
-                head.add(List.of("代表评分"));
+                head.add(List.of("代表评分（评审专家评分）"));
                 head.add(List.of("综合得分"));
                 head.add(List.of("得分系数"));
                 head.add(List.of("排序"));
@@ -1018,17 +1018,15 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     dataList.add(row);
                 }
             } else if ("SPECIAL_INNOVATION".equalsIgnoreCase(summary.getBatchType())) {
-                // 专项与创新任务评审得分表: 序号, 项目名称, 部门, 类别, 中心主要领导评分, 其它中心领导评分, 正职评分, 代表评分, 综合得分, 获奖等次, 排序
+                // 专项与创新任务评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 其他中心领导评分（其它5位中心领导）, 正职评分（11位正职）, 代表评分（评审专家评分）, 综合得分, 排序
                 head.add(List.of("序号"));
                 head.add(List.of("项目名称"));
                 head.add(List.of("部门"));
-                head.add(List.of("类别"));
                 head.add(List.of("中心主要领导评分"));
-                head.add(List.of("其它中心领导评分"));
-                head.add(List.of("正职评分"));
-                head.add(List.of("代表评分"));
+                head.add(List.of("其他中心领导评分（其它5位中心领导）"));
+                head.add(List.of("正职评分（11位正职）"));
+                head.add(List.of("代表评分（评审专家评分）"));
                 head.add(List.of("综合得分"));
-                head.add(List.of("获奖等次"));
                 head.add(List.of("排序"));
 
                 int idx = 1;
@@ -1037,13 +1035,11 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     row.add(idx++);
                     row.add(r.getProjectName());
                     row.add(r.getDepartment() != null ? r.getDepartment() : "");
-                    row.add("MANAGEMENT".equalsIgnoreCase(r.getCategory()) ? "管理类" : "业务类");
                     row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
                     row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
-                    row.add(r.getAwardTierName() != null ? r.getAwardTierName() : "未获奖");
                     row.add(r.getRank());
                     dataList.add(row);
                 }
