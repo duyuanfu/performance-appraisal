@@ -1,5 +1,9 @@
 -- MySQL 8.0 数据库初始化脚本（持久化模式：不删除已有表与历史数据）
 
+-- 0. 创建并选用数据库
+CREATE DATABASE IF NOT EXISTS appraisal_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE appraisal_db;
+
 -- 1. 用户与认证表
 CREATE TABLE IF NOT EXISTS sys_user (
     id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '用户主键ID',

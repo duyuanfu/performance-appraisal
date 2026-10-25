@@ -1,3 +1,6 @@
+-- 选用数据库
+USE appraisal_db;
+
 -- 1. Insert Initial Roles
 INSERT IGNORE INTO sys_role (id, role_code, role_name, description) VALUES
 (1, 'SYS_ADMIN', '系统管理员', '负责账号管理、组织架构维护与系统级敏感数据删除'),
