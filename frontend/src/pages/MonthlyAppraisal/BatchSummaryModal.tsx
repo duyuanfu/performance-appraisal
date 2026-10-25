@@ -21,6 +21,7 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<MonthlySummaryVO | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('head');
 
   const loadSummary = async () => {
     if (!batchId) return;
@@ -28,6 +29,11 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
     try {
       const res = await getMonthlyBatchSummaryApi(batchId);
       setData(res);
+      if (res.category === 'DEPT_DEPUTY') {
+        setActiveTab('deputy');
+      } else {
+        setActiveTab('head');
+      }
     } finally {
       setLoading(false);
     }
@@ -332,7 +338,7 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
         </Space>
       </div>
 
-      <Tabs defaultActiveKey="head" items={tabItems} />
+      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
     </Modal>
   );
 };

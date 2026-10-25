@@ -17,6 +17,7 @@ import java.util.Map;
 public class MonthlySummaryVO {
     private Long batchId;
     private String batchName;
+    private String category; // DEPT_HEAD, DEPT_DEPUTY
     private String appraisalPeriod;
     private String status;
     private List<AppraisalMetric> metrics; // 指标项列表

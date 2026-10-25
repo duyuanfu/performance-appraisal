@@ -29,9 +29,10 @@ public class MonthlyAppraisalController {
 
     @GetMapping("/batches")
     public Result<List<MonthlyBatchVO>> listMonthlyBatches(
+            @RequestParam(required = false) String category,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword) {
-        return Result.success(monthlyAppraisalService.listMonthlyBatches(status, keyword));
+        return Result.success(monthlyAppraisalService.listMonthlyBatches(category, status, keyword));
     }
 
     @GetMapping("/batches/{id}")
@@ -72,8 +73,9 @@ public class MonthlyAppraisalController {
     }
 
     @GetMapping("/candidate-examinees")
-    public Result<List<com.rawcenter.appraisal.vo.UserVO>> getCandidateExaminees() {
-        return Result.success(monthlyAppraisalService.listCandidateExaminees());
+    public Result<List<com.rawcenter.appraisal.vo.UserVO>> getCandidateExaminees(
+            @RequestParam(required = false) String category) {
+        return Result.success(monthlyAppraisalService.listCandidateExaminees(category));
     }
 
     @GetMapping("/batches/{id}/progress")

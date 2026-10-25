@@ -57,6 +57,9 @@ public class DatabaseInitializer implements CommandLineRunner {
             // 5. 检查并补充 project_score_record 表字段
             ensureColumn(metaData, stmt, "project_score_record", "evaluator_role_type", "VARCHAR(32) DEFAULT '' COMMENT '打分角色分类'");
 
+            // 6. 清理可能残留的 V1 测试临时旧账号，确保仅保留 31 位中心人员与 2 位管理员
+            stmt.execute("DELETE FROM sys_user WHERE username IN ('leader_zhang', 'expert_wang', 'expert_zhao', 'expert_sun', 'dept_qian', 'dept_zhou', 'dept_wu', 'dept_zheng')");
+
             log.info("[DatabaseInitializer] 数据库表结构平滑升级检查完成！");
         } catch (Exception e) {
             log.warn("[DatabaseInitializer] 数据库表结构自动升级发生非致命异常，跳过: {}", e.getMessage());

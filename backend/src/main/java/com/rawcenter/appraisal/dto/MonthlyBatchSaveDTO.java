@@ -16,6 +16,8 @@ public class MonthlyBatchSaveDTO {
     @NotBlank(message = "考核批次名称不能为空")
     private String batchName;
 
+    private String category; // DEPT_HEAD (正职), DEPT_DEPUTY (副职)
+
     @NotBlank(message = "考核月份周期不能为空")
     private String appraisalPeriod; // e.g. 2026-10
 

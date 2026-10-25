@@ -9,6 +9,7 @@ export interface LeaderWeightItem {
 export interface MonthlyBatchSaveDTO {
   id?: number;
   batchName: string;
+  category?: 'DEPT_HEAD' | 'DEPT_DEPUTY';
   appraisalPeriod: string;
   startTime?: string;
   endTime?: string;
@@ -21,6 +22,7 @@ export interface MonthlyBatchVO {
   id: number;
   batchName: string;
   batchType: string;
+  category?: 'DEPT_HEAD' | 'DEPT_DEPUTY';
   appraisalPeriod: string;
   startTime?: string;
   endTime?: string;
@@ -72,6 +74,7 @@ export interface TierSummaryRowVO {
 export interface MonthlySummaryVO {
   batchId: number;
   batchName: string;
+  category?: 'DEPT_HEAD' | 'DEPT_DEPUTY';
   appraisalPeriod: string;
   status: string;
   metrics?: MetricItem[];
@@ -126,7 +129,7 @@ export interface EvaluatorProgressVO {
   submittedAt?: string;
 }
 
-export function listMonthlyBatchesApi(params?: { status?: string; keyword?: string }): Promise<MonthlyBatchVO[]> {
+export function listMonthlyBatchesApi(params?: { category?: string; status?: string; keyword?: string }): Promise<MonthlyBatchVO[]> {
   return request.get('/monthly/batches', { params });
 }
 
@@ -160,8 +163,8 @@ export function deleteMonthlyBatchApi(id: number): Promise<void> {
   return request.delete(`/monthly/batches/${id}`);
 }
 
-export function getCandidateExamineesApi(): Promise<any[]> {
-  return request.get('/monthly/candidate-examinees');
+export function getCandidateExamineesApi(params?: { category?: string }): Promise<any[]> {
+  return request.get('/monthly/candidate-examinees', { params });
 }
 
 export function getLeaderScoringDataApi(batchId: number): Promise<MonthlyLeaderScoringVO> {

@@ -56,16 +56,16 @@ public class AppraisalFlowTest {
         Assertions.assertNotNull(adminResp.getToken());
         Assertions.assertEquals("ADMIN", adminResp.getActiveRole());
 
-        // 2. Test Multi-role user login (dept_qian has both EMPLOYEE and EXPERT)
+        // 2. Test Multi-role user login (高锐 13759457660 has both DEPT_DEPUTY, EMPLOYEE and EXPERT)
         LoginRequest qianReq = new LoginRequest();
-        qianReq.setUsername("dept_qian");
+        qianReq.setUsername("13759457660");
         qianReq.setPassword("password123");
         LoginResponse qianResp = userService.login(qianReq);
         Assertions.assertNotNull(qianResp.getToken());
         Assertions.assertTrue(qianResp.getRoles().size() >= 2);
         boolean hasExpert = qianResp.getRoles().stream().anyMatch(r -> "EXPERT".equals(r.getRoleCode()));
         boolean hasEmployee = qianResp.getRoles().stream().anyMatch(r -> "EMPLOYEE".equals(r.getRoleCode()));
-        Assertions.assertTrue(hasExpert && hasEmployee, "dept_qian should have both EXPERT and EMPLOYEE roles");
+        Assertions.assertTrue(hasExpert && hasEmployee, "13759457660 should have both EXPERT and EMPLOYEE roles");
     }
 
     @Test
@@ -74,28 +74,29 @@ public class AppraisalFlowTest {
         UserContext.set(UserContext.CurrentUser.builder()
                 .userId(1L)
                 .username("admin")
-                .realName("系统管理员")
+                .realName("业务管理员")
                 .activeRole("ADMIN")
                 .build());
 
-        // 1. Create Monthly Batch
+        // 1. Create Monthly Batch (部门正职月度考评)
         MonthlyBatchSaveDTO batchDto = new MonthlyBatchSaveDTO();
-        batchDto.setBatchName("2026年10月部门负责人绩效考核测试");
+        batchDto.setBatchName("2026年10月内设部门正职绩效考核测试");
+        batchDto.setCategory("DEPT_HEAD");
         batchDto.setAppraisalPeriod("2026-10");
         batchDto.setStartTime(LocalDateTime.now().minusHours(1));
         batchDto.setEndTime(LocalDateTime.now().plusDays(7));
 
-        // Leaders: leader_zhang (id=2, weight=50%), leader_li (id=3, weight=50%)
+        // Leaders: 陈剑 (id=3, weight=50%), 施文萃 (id=4, weight=50%)
         MonthlyBatchSaveDTO.LeaderWeightDTO l1 = new MonthlyBatchSaveDTO.LeaderWeightDTO();
-        l1.setLeaderUserId(2L);
+        l1.setLeaderUserId(3L);
         l1.setWeight(new BigDecimal("50.0000"));
         MonthlyBatchSaveDTO.LeaderWeightDTO l2 = new MonthlyBatchSaveDTO.LeaderWeightDTO();
-        l2.setLeaderUserId(3L);
+        l2.setLeaderUserId(4L);
         l2.setWeight(new BigDecimal("50.0000"));
         batchDto.setLeaders(Arrays.asList(l1, l2));
 
-        // Examinees: dept_qian (id=7), dept_zhou (id=8)
-        batchDto.setExamineeUserIds(Arrays.asList(7L, 8L));
+        // Examinees: 王昆淼 (id=9), 张玉丰 (id=10)
+        batchDto.setExamineeUserIds(Arrays.asList(9L, 10L));
 
         // Default Metrics
         List<MetricDTO> metrics = metricService.getDefaultTemplates("MONTHLY");
@@ -103,16 +104,17 @@ public class AppraisalFlowTest {
 
         monthlyService.saveMonthlyBatch(batchDto);
 
-        List<MonthlyBatchVO> batches = monthlyService.listMonthlyBatches(null, "2026年10月部门负责人绩效考核测试");
+        List<MonthlyBatchVO> batches = monthlyService.listMonthlyBatches(null, "2026年10月内设部门正职绩效考核测试");
         Assertions.assertFalse(batches.isEmpty());
         Long batchId = batches.get(0).getId();
 
-        // Test Month Uniqueness: trying to create a second batch for same month "2026-10" MUST fail
+        // Test Batch Name Uniqueness
         MonthlyBatchSaveDTO dupDto = new MonthlyBatchSaveDTO();
-        dupDto.setBatchName("2026年10月重复批次");
+        dupDto.setBatchName("2026年10月内设部门正职绩效考核测试"); // 重复名称
+        dupDto.setCategory("DEPT_HEAD");
         dupDto.setAppraisalPeriod("2026-10");
         dupDto.setLeaders(Arrays.asList(l1, l2));
-        dupDto.setExamineeUserIds(Arrays.asList(7L, 8L));
+        dupDto.setExamineeUserIds(Arrays.asList(9L, 10L));
         dupDto.setMetrics(metrics);
         Assertions.assertThrows(BusinessException.class, () -> monthlyService.saveMonthlyBatch(dupDto));
 
@@ -122,13 +124,13 @@ public class AppraisalFlowTest {
         // Test Leader Progress & Urge
         List<EvaluatorProgressVO> leaderProgress = monthlyService.getLeaderProgress(batchId);
         Assertions.assertEquals(2, leaderProgress.size());
-        monthlyService.urgeLeader(batchId, 2L);
+        monthlyService.urgeLeader(batchId, 3L);
 
-        // 3. Leader 1 (leader_zhang, id=2) Scores
+        // 3. Leader 1 (陈剑, id=3) Scores
         UserContext.set(UserContext.CurrentUser.builder()
-                .userId(2L)
-                .username("leader_zhang")
-                .realName("张主任")
+                .userId(3L)
+                .username("13908866003")
+                .realName("陈剑")
                 .activeRole("LEADER")
                 .build());
 
@@ -141,25 +143,25 @@ public class AppraisalFlowTest {
         submit1.setIsSubmit(true);
 
         List<MonthlyScoreSubmitDTO.MonthlyScoreItemDTO> items1 = new ArrayList<>();
-        // Examinee 7 (qian) score 90 each metric
-        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO itemQian = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
-        itemQian.setExamineeUserId(7L);
-        Map<Long, BigDecimal> scoresQian1 = new HashMap<>();
+        // Examinee 9 score 90 each metric
+        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item1 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
+        item1.setExamineeUserId(9L);
+        Map<Long, BigDecimal> scores1 = new HashMap<>();
         for (AppraisalMetric m : metricList) {
-            scoresQian1.put(m.getId(), new BigDecimal("90.0000"));
+            scores1.put(m.getId(), new BigDecimal("90.0000"));
         }
-        itemQian.setMetricScores(scoresQian1);
-        items1.add(itemQian);
+        item1.setMetricScores(scores1);
+        items1.add(item1);
 
-        // Examinee 8 (zhou) score 80 each metric
-        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO itemZhou = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
-        itemZhou.setExamineeUserId(8L);
-        Map<Long, BigDecimal> scoresZhou1 = new HashMap<>();
+        // Examinee 10 score 80 each metric
+        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item2 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
+        item2.setExamineeUserId(10L);
+        Map<Long, BigDecimal> scores2 = new HashMap<>();
         for (AppraisalMetric m : metricList) {
-            scoresZhou1.put(m.getId(), new BigDecimal("80.0000"));
+            scores2.put(m.getId(), new BigDecimal("80.0000"));
         }
-        itemZhou.setMetricScores(scoresZhou1);
-        items1.add(itemZhou);
+        item2.setMetricScores(scores2);
+        items1.add(item2);
 
         submit1.setItems(items1);
         monthlyService.saveLeaderScores(submit1);
@@ -172,11 +174,11 @@ public class AppraisalFlowTest {
         // Resubmit
         monthlyService.saveLeaderScores(submit1);
 
-        // 4. Leader 2 (leader_li, id=3) Scores
+        // 4. Leader 2 (施文萃, id=4) Scores
         UserContext.set(UserContext.CurrentUser.builder()
-                .userId(3L)
-                .username("leader_li")
-                .realName("李副主任")
+                .userId(4L)
+                .username("13888952359")
+                .realName("施文萃")
                 .activeRole("LEADER")
                 .build());
 
@@ -185,25 +187,25 @@ public class AppraisalFlowTest {
         submit2.setIsSubmit(true);
 
         List<MonthlyScoreSubmitDTO.MonthlyScoreItemDTO> items2 = new ArrayList<>();
-        // Examinee 7 (qian) score 100
-        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO itemQian2 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
-        itemQian2.setExamineeUserId(7L);
-        Map<Long, BigDecimal> scoresQian2 = new HashMap<>();
+        // Examinee 9 score 100
+        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item3 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
+        item3.setExamineeUserId(9L);
+        Map<Long, BigDecimal> scores3 = new HashMap<>();
         for (AppraisalMetric m : metricList) {
-            scoresQian2.put(m.getId(), new BigDecimal("100.0000"));
+            scores3.put(m.getId(), new BigDecimal("100.0000"));
         }
-        itemQian2.setMetricScores(scoresQian2);
-        items2.add(itemQian2);
+        item3.setMetricScores(scores3);
+        items2.add(item3);
 
-        // Examinee 8 (zhou) score 80
-        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO itemZhou2 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
-        itemZhou2.setExamineeUserId(8L);
-        Map<Long, BigDecimal> scoresZhou2 = new HashMap<>();
+        // Examinee 10 score 80
+        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item4 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
+        item4.setExamineeUserId(10L);
+        Map<Long, BigDecimal> scores4 = new HashMap<>();
         for (AppraisalMetric m : metricList) {
-            scoresZhou2.put(m.getId(), new BigDecimal("80.0000"));
+            scores4.put(m.getId(), new BigDecimal("80.0000"));
         }
-        itemZhou2.setMetricScores(scoresZhou2);
-        items2.add(itemZhou2);
+        item4.setMetricScores(scores4);
+        items2.add(item4);
 
         submit2.setItems(items2);
         monthlyService.saveLeaderScores(submit2);
@@ -212,24 +214,24 @@ public class AppraisalFlowTest {
         UserContext.set(UserContext.CurrentUser.builder()
                 .userId(1L)
                 .username("admin")
-                .realName("系统管理员")
+                .realName("业务管理员")
                 .activeRole("ADMIN")
                 .build());
 
         MonthlySummaryVO summary = monthlyService.getMonthlyBatchSummary(batchId);
         Assertions.assertEquals(2, summary.getRows().size());
 
-        // Qian composite: 90 * 0.5 + 100 * 0.5 = 95.0000
-        MonthlySummaryVO.SummaryRowVO rowQian = summary.getRows().stream()
-                .filter(r -> r.getExamineeUserId().equals(7L)).findFirst().orElseThrow();
-        Assertions.assertEquals(new BigDecimal("95.0000"), rowQian.getCompositeScore());
-        Assertions.assertEquals(1, rowQian.getRank());
+        // Examinee 9 composite: 90 * 0.5 + 100 * 0.5 = 95.0000
+        MonthlySummaryVO.SummaryRowVO row9 = summary.getRows().stream()
+                .filter(r -> r.getExamineeUserId().equals(9L)).findFirst().orElseThrow();
+        Assertions.assertEquals(new BigDecimal("95.0000"), row9.getCompositeScore());
+        Assertions.assertEquals(1, row9.getRank());
 
-        // Zhou composite: 80 * 0.5 + 80 * 0.5 = 80.0000
-        MonthlySummaryVO.SummaryRowVO rowZhou = summary.getRows().stream()
-                .filter(r -> r.getExamineeUserId().equals(8L)).findFirst().orElseThrow();
-        Assertions.assertEquals(new BigDecimal("80.0000"), rowZhou.getCompositeScore());
-        Assertions.assertEquals(2, rowZhou.getRank());
+        // Examinee 10 composite: 80 * 0.5 + 80 * 0.5 = 80.0000
+        MonthlySummaryVO.SummaryRowVO row10 = summary.getRows().stream()
+                .filter(r -> r.getExamineeUserId().equals(10L)).findFirst().orElseThrow();
+        Assertions.assertEquals(new BigDecimal("80.0000"), row10.getCompositeScore());
+        Assertions.assertEquals(2, row10.getRank());
 
         // 6. Test Excel Export
         byte[] excelBytes = monthlyService.exportMonthlyBatchExcel(batchId);
@@ -238,9 +240,9 @@ public class AppraisalFlowTest {
 
         // 7. Examinee checks personal result BEFORE archiving -> MUST be blocked with BusinessException
         UserContext.set(UserContext.CurrentUser.builder()
-                .userId(7L)
-                .username("dept_qian")
-                .realName("钱部长")
+                .userId(9L)
+                .username("13987184673")
+                .realName("王昆淼")
                 .activeRole("EMPLOYEE")
                 .build());
         Assertions.assertThrows(BusinessException.class, () -> monthlyService.getExamineePersonalResult(batchId));
@@ -249,21 +251,22 @@ public class AppraisalFlowTest {
         UserContext.set(UserContext.CurrentUser.builder()
                 .userId(1L)
                 .username("admin")
-                .realName("系统管理员")
+                .realName("业务管理员")
                 .activeRole("ADMIN")
                 .build());
         monthlyService.completeMonthlyBatch(batchId);
 
         // 9. Examinee checks personal result AFTER archiving -> Successfully gets score & rankings
         UserContext.set(UserContext.CurrentUser.builder()
-                .userId(7L)
-                .username("dept_qian")
-                .realName("钱部长")
+                .userId(9L)
+                .username("13987184673")
+                .realName("王昆淼")
                 .activeRole("EMPLOYEE")
                 .build());
 
         ExamineePersonalResultVO personalResult = monthlyService.getExamineePersonalResult(batchId);
-        Assertions.assertEquals(new BigDecimal("95.0000"), personalResult.getMyCompositeScore());
+        // 王昆淼 (正职): 主要领导90*0.25 + 分管领导100*0.35 = 57.5000
+        Assertions.assertEquals(new BigDecimal("57.5000"), personalResult.getMyCompositeScore());
         Assertions.assertEquals(1, personalResult.getMyRank());
         Assertions.assertTrue(personalResult.getRankList().isEmpty(), "根据保密规则，不返回部门全员榜单，仅能查看本人总分和排名");
     }
@@ -285,12 +288,12 @@ public class AppraisalFlowTest {
         batchDto.setStartTime(LocalDateTime.now().minusHours(1));
         batchDto.setEndTime(LocalDateTime.now().plusDays(10));
 
-        // Experts: expert_wang (id=4, weight=50%), expert_zhao (id=5, weight=50%) 保持与月度绩效一致满分100%
+        // Experts: 徐济仓 (id=32, weight=50%), 刘海业 (id=33, weight=50%)
         ProjectBatchSaveDTO.ExpertWeightDTO e1 = new ProjectBatchSaveDTO.ExpertWeightDTO();
-        e1.setExpertUserId(4L);
+        e1.setExpertUserId(32L);
         e1.setWeight(new BigDecimal("50.0000"));
         ProjectBatchSaveDTO.ExpertWeightDTO e2 = new ProjectBatchSaveDTO.ExpertWeightDTO();
-        e2.setExpertUserId(5L);
+        e2.setExpertUserId(33L);
         e2.setWeight(new BigDecimal("50.0000"));
         batchDto.setExperts(Arrays.asList(e1, e2));
 
@@ -348,13 +351,13 @@ public class AppraisalFlowTest {
         // Test Expert Progress & Urge
         List<EvaluatorProgressVO> expertProgress = projectService.getExpertProgress(batchId);
         Assertions.assertEquals(2, expertProgress.size());
-        projectService.urgeExpert(batchId, 4L);
+        projectService.urgeExpert(batchId, 32L);
 
-        // 4. Expert 1 (expert_wang, id=4) Scores
+        // 4. Expert 1 (徐济仓, id=32) Scores
         UserContext.set(UserContext.CurrentUser.builder()
-                .userId(4L)
-                .username("expert_wang")
-                .realName("王专家")
+                .userId(32L)
+                .username("13085371368")
+                .realName("徐济仓")
                 .activeRole("EXPERT")
                 .build());
 
@@ -389,11 +392,11 @@ public class AppraisalFlowTest {
         submit1.setItems(items1);
         projectService.saveExpertScores(submit1);
 
-        // 5. Expert 2 (expert_zhao, id=5) Scores
+        // 5. Expert 2 (刘海业, id=33) Scores
         UserContext.set(UserContext.CurrentUser.builder()
-                .userId(5L)
-                .username("expert_zhao")
-                .realName("赵专家")
+                .userId(33L)
+                .username("17787141508")
+                .realName("刘海业")
                 .activeRole("EXPERT")
                 .build());
 
@@ -461,15 +464,15 @@ public class AppraisalFlowTest {
         dto.setBatchName("2026年11月V2分层考评测试批次");
         dto.setAppraisalPeriod("2026-11");
         MonthlyBatchSaveDTO.LeaderWeightDTO l1 = new MonthlyBatchSaveDTO.LeaderWeightDTO();
-        l1.setLeaderUserId(11L); // 陈剑 (PRIMARY_LEADER)
+        l1.setLeaderUserId(3L); // 陈剑 (PRIMARY_LEADER)
         l1.setWeight(new BigDecimal("50.0000"));
         MonthlyBatchSaveDTO.LeaderWeightDTO l2 = new MonthlyBatchSaveDTO.LeaderWeightDTO();
-        l2.setLeaderUserId(12L); // 施文萃 (CENTER_LEADER, 分管办公室)
+        l2.setLeaderUserId(4L); // 施文萃 (CENTER_LEADER, 分管办公室)
         l2.setWeight(new BigDecimal("50.0000"));
         dto.setLeaders(Arrays.asList(l1, l2));
 
-        // Examinees: 王昆淼 (17L, DEPT_HEAD), 田阳阳 (28L, DEPT_DEPUTY, 直属王昆淼, 分管施文萃)
-        dto.setExamineeUserIds(Arrays.asList(17L, 28L));
+        // Examinees: 王昆淼 (9L, DEPT_HEAD), 田阳阳 (20L, DEPT_DEPUTY, 直属王昆淼, 分管施文萃)
+        dto.setExamineeUserIds(Arrays.asList(9L, 20L));
         List<MetricDTO> metrics = metricService.getDefaultTemplates("MONTHLY");
         dto.setMetrics(metrics);
 
@@ -484,12 +487,12 @@ public class AppraisalFlowTest {
         List<AppraisalMetric> savedMonthlyMetrics = metricService.listMetricsByBatchId(batchId);
 
         // 2. Score as 陈剑 (PRIMARY_LEADER): 给王昆淼 100 分
-        UserContext.set(UserContext.CurrentUser.builder().userId(11L).username("13908866003").activeRole("LEADER").build());
+        UserContext.set(UserContext.CurrentUser.builder().userId(3L).username("13908866003").activeRole("LEADER").build());
         MonthlyScoreSubmitDTO s1 = new MonthlyScoreSubmitDTO();
         s1.setBatchId(batchId);
         s1.setIsSubmit(true);
         MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item1 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
-        item1.setExamineeUserId(17L);
+        item1.setExamineeUserId(9L);
         Map<Long, BigDecimal> mScores1 = new HashMap<>();
         for (AppraisalMetric m : savedMonthlyMetrics) {
             mScores1.put(m.getId(), new BigDecimal("100.0000"));
@@ -499,16 +502,16 @@ public class AppraisalFlowTest {
         monthlyService.saveLeaderScores(s1);
 
         // 3. Score as 施文萃 (CENTER_LEADER, 王昆淼的分管领导, 田阳阳的分管领导)
-        UserContext.set(UserContext.CurrentUser.builder().userId(12L).username("13888952359").activeRole("LEADER").build());
+        UserContext.set(UserContext.CurrentUser.builder().userId(4L).username("13888952359").activeRole("LEADER").build());
         MonthlyScoreSubmitDTO s2 = new MonthlyScoreSubmitDTO();
         s2.setBatchId(batchId);
         s2.setIsSubmit(true);
         MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item2 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
-        item2.setExamineeUserId(17L);
+        item2.setExamineeUserId(9L);
         item2.setMetricScores(mScores1); // 100分
 
         MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item3 = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
-        item3.setExamineeUserId(28L);
+        item3.setExamineeUserId(20L);
         item3.setMetricScores(mScores1); // 100分
         s2.setItems(Arrays.asList(item2, item3));
         monthlyService.saveLeaderScores(s2);
@@ -522,14 +525,14 @@ public class AppraisalFlowTest {
 
         // 王昆淼 (正职): 主要领导100分(25%) + 分管领导100分(35%) + 其他领导0 + 互评0 = 60.0000
         MonthlySummaryVO.TierSummaryRowVO headRow = summary.getHeadRows().stream()
-                .filter(r -> r.getExamineeUserId().equals(17L)).findFirst().orElseThrow();
+                .filter(r -> r.getExamineeUserId().equals(9L)).findFirst().orElseThrow();
         Assertions.assertEquals(new BigDecimal("100.0000"), headRow.getPrimaryLeaderScore());
         Assertions.assertEquals(new BigDecimal("100.0000"), headRow.getSupervisorLeaderScore());
         Assertions.assertEquals(new BigDecimal("60.0000"), headRow.getCompositeScore());
 
         // 田阳阳 (副职): 分管领导100分(35%) + 其他0 + 本部门正职0 + 副职互评0 = 35.0000
         MonthlySummaryVO.TierSummaryRowVO deputyRow = summary.getDeputyRows().stream()
-                .filter(r -> r.getExamineeUserId().equals(28L)).findFirst().orElseThrow();
+                .filter(r -> r.getExamineeUserId().equals(20L)).findFirst().orElseThrow();
         Assertions.assertEquals(new BigDecimal("100.0000"), deputyRow.getSupervisorLeaderScore());
         Assertions.assertEquals(new BigDecimal("35.0000"), deputyRow.getCompositeScore());
 
@@ -548,7 +551,7 @@ public class AppraisalFlowTest {
         batchDto.setCategory("ALL");
         batchDto.setAppraisalPeriod("2026");
         ProjectBatchSaveDTO.ExpertWeightDTO ew1 = new ProjectBatchSaveDTO.ExpertWeightDTO();
-        ew1.setExpertUserId(4L);
+        ew1.setExpertUserId(32L); // 徐济仓
         ew1.setWeight(new BigDecimal("100.0000"));
         batchDto.setExperts(Collections.singletonList(ew1));
         List<MetricDTO> metrics = metricService.getDefaultTemplates("SPECIAL_INNOVATION");
@@ -606,7 +609,7 @@ public class AppraisalFlowTest {
         Assertions.assertEquals(3, items.size());
 
         // Score as expert
-        UserContext.set(UserContext.CurrentUser.builder().userId(4L).username("expert_wang").activeRole("EXPERT").build());
+        UserContext.set(UserContext.CurrentUser.builder().userId(32L).username("13085371368").activeRole("EXPERT").build());
         List<AppraisalMetric> savedSpecialMetrics = metricService.listMetricsByBatchId(batchId);
         ExpertScoreSubmitDTO s = new ExpertScoreSubmitDTO();
         s.setBatchId(batchId);

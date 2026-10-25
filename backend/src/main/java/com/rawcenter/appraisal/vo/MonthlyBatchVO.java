@@ -16,6 +16,7 @@ public class MonthlyBatchVO {
     private Long id;
     private String batchName;
     private String batchType;
+    private String category; // DEPT_HEAD, DEPT_DEPUTY
     private String appraisalPeriod;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

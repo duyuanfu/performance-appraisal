@@ -12,6 +12,7 @@ import java.util.List;
 
 public interface MonthlyAppraisalService {
     List<MonthlyBatchVO> listMonthlyBatches(String status, String keyword);
+    List<MonthlyBatchVO> listMonthlyBatches(String category, String status, String keyword);
     MonthlyBatchVO getMonthlyBatchDetail(Long batchId);
     void saveMonthlyBatch(MonthlyBatchSaveDTO dto);
     void publishMonthlyBatch(Long batchId);
@@ -26,4 +27,5 @@ public interface MonthlyAppraisalService {
     ExamineePersonalResultVO getExamineePersonalResult(Long batchId);
     byte[] exportMonthlyBatchExcel(Long batchId);
     List<com.rawcenter.appraisal.vo.UserVO> listCandidateExaminees();
+    List<com.rawcenter.appraisal.vo.UserVO> listCandidateExaminees(String category);
 }

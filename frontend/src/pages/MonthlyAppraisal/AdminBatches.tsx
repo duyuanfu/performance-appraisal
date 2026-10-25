@@ -17,6 +17,7 @@ import {
   Typography,
   Divider,
   Radio,
+  Alert,
 } from 'antd';
 import {
   PlusOutlined,
@@ -60,9 +61,11 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
     null
   );
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT'>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'DEPT_HEAD' | 'DEPT_DEPUTY'>('ALL');
 
   // Batch create modal state
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [targetCategory, setTargetCategory] = useState<'DEPT_HEAD' | 'DEPT_DEPUTY'>('DEPT_HEAD');
   const [relaunchBatchId, setRelaunchBatchId] = useState<number | null>(null);
   const [leaders, setLeaders] = useState<UserVO[]>([]);
   const [examineeCandidates, setExamineeCandidates] = useState<UserVO[]>([]);
@@ -118,11 +121,14 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
       setSelectedLeaderWeights([]);
     }
 
-    // Default select all examinee candidates
+    const initialCat = 'DEPT_HEAD';
+    setTargetCategory(initialCat);
     form.setFieldsValue({
       appraisalPeriod: dayjs(),
-      batchName: `${dayjs().format('YYYY年M月')}部门负责人月度绩效考核`,
-      examineeUserIds: examineeCandidates.map((u) => u.id),
+      batchName: `${dayjs().format('YYYY年M月')}内设部门正职绩效考核`,
+      examineeUserIds: examineeCandidates
+        .filter((u) => u.positionCategory === initialCat)
+        .map((u) => u.id),
       dateRange: [dayjs(), dayjs().add(7, 'day')],
     });
 
@@ -215,16 +221,17 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
         ? values.appraisalPeriod.trim()
         : dayjs(values.appraisalPeriod).format('YYYY-MM');
 
-      // 规则：一个月只能建立一个月度绩效考核流程（忽略当前重新发起的批次）
-      const exists = batches.some((b) => b.id !== relaunchBatchId && b.appraisalPeriod === periodStr);
+      // 规则：只要考核批次名称不同即可，允许在同月分别建立正职和副职考评
+      const exists = batches.some((b) => b.id !== relaunchBatchId && b.batchName === values.batchName.trim());
       if (exists) {
-        message.error(`该月份【${periodStr}】已存在月度绩效考核批次，系统规定一个月只能建立一个考核流程！`);
+        message.error(`考核批次名称【${values.batchName.trim()}】已存在，请使用不同的批次名称！`);
         return;
       }
 
       const payload: MonthlyBatchSaveDTO = {
         id: relaunchBatchId || undefined,
         batchName: values.batchName,
+        category: targetCategory,
         appraisalPeriod: periodStr,
         startTime: values.dateRange?.[0] ? dayjs(values.dateRange[0]).format('YYYY-MM-DD HH:mm:ss') : undefined,
         endTime: values.dateRange?.[1] ? dayjs(values.dateRange[1]).format('YYYY-MM-DD HH:mm:ss') : undefined,
@@ -273,6 +280,17 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
       dataIndex: 'batchName',
       key: 'batchName',
       width: 240,
+    },
+    {
+      title: '考核对象',
+      dataIndex: 'category',
+      key: 'category',
+      width: 110,
+      render: (cat: string) => (
+        <Tag color={cat === 'DEPT_DEPUTY' ? 'geekblue' : 'cyan'}>
+          {cat === 'DEPT_DEPUTY' ? '部门副职' : '部门正职'}
+        </Tag>
+      ),
     },
     {
       title: '考核月份',
@@ -412,21 +430,31 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
     },
   ];
 
-  const filteredBatches =
-    statusFilter === 'ALL' ? batches : batches.filter((b) => b.status === statusFilter);
+  const filteredBatches = batches
+    .filter((b) => statusFilter === 'ALL' || b.status === statusFilter)
+    .filter((b) => categoryFilter === 'ALL' || (b.category || 'DEPT_HEAD') === categoryFilter);
 
   return (
     <div>
-      <Card title="月度绩效考核批次管理" style={{ marginBottom: 16 }}>
+      <Card title="月度绩效考核批次管理（支持正职/副职独立考核）" style={{ marginBottom: 16 }}>
         <Row justify="space-between" align="middle">
           <Col>
-            <Space size="middle">
+            <Space size="middle" wrap>
+              <Radio.Group
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                buttonStyle="solid"
+              >
+                <Radio.Button value="ALL">全部考核对象</Radio.Button>
+                <Radio.Button value="DEPT_HEAD">部门正职考核</Radio.Button>
+                <Radio.Button value="DEPT_DEPUTY">部门副职考核</Radio.Button>
+              </Radio.Group>
+
               <Radio.Group
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                buttonStyle="solid"
               >
-                <Radio.Button value="ALL">全部 ({batches.length})</Radio.Button>
+                <Radio.Button value="ALL">全部状态 ({batches.length})</Radio.Button>
                 <Radio.Button value="IN_PROGRESS">
                   评分中 ({batches.filter((b) => b.status === 'IN_PROGRESS').length})
                 </Radio.Button>
@@ -480,19 +508,59 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
       >
         <Form form={form} layout="vertical">
           <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item label="考核对象类别（区分部门正职与部门副职）">
+                <Radio.Group
+                  value={targetCategory}
+                  onChange={(e) => {
+                    const newCat = e.target.value;
+                    setTargetCategory(newCat);
+                    const currentPeriod = form.getFieldValue('appraisalPeriod');
+                    const month = (currentPeriod && dayjs(currentPeriod).isValid())
+                      ? dayjs(currentPeriod).format('YYYY年M月')
+                      : dayjs().format('YYYY年M月');
+                    form.setFieldsValue({
+                      batchName: `${month}${newCat === 'DEPT_DEPUTY' ? '内设部门副职' : '内设部门正职'}绩效考核`,
+                      examineeUserIds: examineeCandidates
+                        .filter((u) => u.positionCategory === newCat)
+                        .map((u) => u.id),
+                    });
+                  }}
+                  buttonStyle="solid"
+                >
+                  <Radio.Button value="DEPT_HEAD">部门正职考核（11人）</Radio.Button>
+                  <Radio.Button value="DEPT_DEPUTY">部门副职考核（12人）</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={targetCategory === 'DEPT_HEAD' ? '内设部门正职月度考核权重规则' : '内设部门副职月度考核权重规则'}
+            description={
+              targetCategory === 'DEPT_HEAD'
+                ? '中心主要领导 25% + 分管领导 35% + 其他中心领导均分 15% + 部门正职互评均分 25% = 100%。系统将自动根据上下级关系动态识别。'
+                : '中心分管领导 35% + 其他中心领导均分 20% + 直属本部门正职 30% + 部门副职互评均分 15% = 100%。系统将自动根据上下级关系动态识别。'
+            }
+          />
+
+          <Row gutter={16}>
             <Col span={14}>
               <Form.Item
                 name="batchName"
                 label="考核批次名称"
                 rules={[{ required: true, message: '请输入批次名称' }]}
               >
-                <Input placeholder="如：2026年10月部门负责人月度绩效考核" />
+                <Input placeholder="如：2026年10月内设部门正职绩效考核" />
               </Form.Item>
             </Col>
             <Col span={10}>
               <Form.Item
                 name="appraisalPeriod"
-                label="考核月份（一个月只能建一个流程）"
+                label="考核月份"
                 rules={[{ required: true, message: '请选择考核月份' }]}
               >
                 <DatePicker
@@ -503,7 +571,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
                   onChange={(date) => {
                     if (date) {
                       form.setFieldsValue({
-                        batchName: `${date.format('YYYY年M月')}部门负责人月度绩效考核`,
+                        batchName: `${date.format('YYYY年M月')}${targetCategory === 'DEPT_DEPUTY' ? '内设部门副职' : '内设部门正职'}绩效考核`,
                       });
                     }
                   }}
@@ -584,20 +652,22 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
           )}
 
           <Divider orientation="left" style={{ margin: '12px 0' }}>
-            2. 被考核人员选择
+            2. 被考核人员选择（{targetCategory === 'DEPT_DEPUTY' ? '部门副职' : '部门正职'}）
           </Divider>
 
           <Form.Item
             name="examineeUserIds"
-            label="选择被考核部门负责人及人员"
+            label={`选择参评${targetCategory === 'DEPT_DEPUTY' ? '副职' : '正职'}人员清单`}
             rules={[{ required: true, message: '请至少选择一位被考核人员' }]}
           >
-            <Select mode="multiple" placeholder="选择参评被考核人员">
-              {examineeCandidates.map((u) => (
-                <Select.Option key={u.id} value={u.id}>
-                  {u.realName} - {u.department} ({u.position || '员工'})
-                </Select.Option>
-              ))}
+            <Select mode="multiple" placeholder="选择参评人员">
+              {examineeCandidates
+                .filter((u) => !targetCategory || u.positionCategory === targetCategory)
+                .map((u) => (
+                  <Select.Option key={u.id} value={u.id}>
+                    {u.realName} - {u.department} ({u.title || (u.positionCategory === 'DEPT_DEPUTY' ? '副职' : '正职')})
+                  </Select.Option>
+                ))}
             </Select>
           </Form.Item>
 

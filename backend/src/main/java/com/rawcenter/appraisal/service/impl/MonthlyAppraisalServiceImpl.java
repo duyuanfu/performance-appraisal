@@ -45,11 +45,17 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
 
     @Override
     public List<MonthlyBatchVO> listMonthlyBatches(String status, String keyword) {
+        return listMonthlyBatches(null, status, keyword);
+    }
+
+    @Override
+    public List<MonthlyBatchVO> listMonthlyBatches(String category, String status, String keyword) {
         Long currentUserId = UserContext.getUserId();
         String activeRole = UserContext.get() != null ? UserContext.get().getActiveRole() : null;
 
         LambdaQueryWrapper<AppraisalBatch> wrapper = new LambdaQueryWrapper<AppraisalBatch>()
                 .eq(AppraisalBatch::getBatchType, "MONTHLY")
+                .eq(StringUtils.hasText(category), AppraisalBatch::getCategory, category)
                 .eq(StringUtils.hasText(status), AppraisalBatch::getStatus, status)
                 .like(StringUtils.hasText(keyword), AppraisalBatch::getBatchName, keyword);
 
@@ -119,6 +125,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .id(b.getId())
                     .batchName(b.getBatchName())
                     .batchType(b.getBatchType())
+                    .category(b.getCategory())
                     .appraisalPeriod(b.getAppraisalPeriod())
                     .startTime(b.getStartTime())
                     .endTime(b.getEndTime())
@@ -151,6 +158,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .id(b.getId())
                 .batchName(b.getBatchName())
                 .batchType(b.getBatchType())
+                .category(b.getCategory())
                 .appraisalPeriod(b.getAppraisalPeriod())
                 .startTime(b.getStartTime())
                 .endTime(b.getEndTime())
@@ -177,13 +185,15 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             throw new BusinessException(400, "领导打分权重合计必须为100%，当前为：" + totalLeaderWeight.stripTrailingZeros().toPlainString() + "%");
         }
 
-        // 校验唯一性：一个月只能建立一个月度绩效考核流程
+        String category = StringUtils.hasText(dto.getCategory()) ? dto.getCategory() : "DEPT_HEAD";
+
+        // 校验唯一性：同一月份正职与副职各可建立独立流程，批次名称不可重复
         Long existingBatchCount = batchMapper.selectCount(new LambdaQueryWrapper<AppraisalBatch>()
                 .eq(AppraisalBatch::getBatchType, "MONTHLY")
-                .eq(AppraisalBatch::getAppraisalPeriod, dto.getAppraisalPeriod().trim())
+                .eq(AppraisalBatch::getBatchName, dto.getBatchName().trim())
                 .ne(dto.getId() != null, AppraisalBatch::getId, dto.getId()));
         if (existingBatchCount > 0) {
-            throw new BusinessException(400, "该月份【" + dto.getAppraisalPeriod().trim() + "】已存在月度考核批次，系统规定一个月只能建立一个考核流程！");
+            throw new BusinessException(400, "考核批次名称【" + dto.getBatchName().trim() + "】已存在，请使用不同的批次名称！");
         }
 
         AppraisalBatch batch;
@@ -191,6 +201,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             batch = AppraisalBatch.builder()
                     .batchName(dto.getBatchName())
                     .batchType("MONTHLY")
+                    .category(category)
                     .appraisalPeriod(dto.getAppraisalPeriod())
                     .startTime(dto.getStartTime())
                     .endTime(dto.getEndTime())
@@ -206,6 +217,9 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 throw new BusinessException(404, "批次不存在");
             }
             batch.setBatchName(dto.getBatchName());
+            if (StringUtils.hasText(dto.getCategory())) {
+                batch.setCategory(dto.getCategory());
+            }
             batch.setAppraisalPeriod(dto.getAppraisalPeriod());
             batch.setStartTime(dto.getStartTime() != null ? dto.getStartTime() : LocalDateTime.now());
             batch.setEndTime(dto.getEndTime());
@@ -256,10 +270,20 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
 
     @Override
     public List<UserVO> listCandidateExaminees() {
-        List<SysUser> users = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+        return listCandidateExaminees(null);
+    }
+
+    @Override
+    public List<UserVO> listCandidateExaminees(String category) {
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
                 .notIn(SysUser::getPositionCategory, Arrays.asList("PRIMARY_LEADER", "CENTER_LEADER", "EXPERT"))
-                .eq(SysUser::getStatus, 1)
-                .orderByAsc(SysUser::getId));
+                .eq(SysUser::getStatus, 1);
+
+        if (StringUtils.hasText(category)) {
+            wrapper.eq(SysUser::getPositionCategory, category);
+        }
+
+        List<SysUser> users = userMapper.selectList(wrapper.orderByAsc(SysUser::getId));
         return users.stream().map(u -> UserVO.builder()
                 .id(u.getId())
                 .username(u.getUsername())
@@ -938,6 +962,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         return MonthlySummaryVO.builder()
                 .batchId(batchId)
                 .batchName(batch.getBatchName())
+                .category(batch.getCategory())
                 .appraisalPeriod(batch.getAppraisalPeriod())
                 .status(batch.getStatus())
                 .metrics(metrics)
@@ -961,13 +986,35 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
 
         MonthlySummaryVO summary = getMonthlyBatchSummary(batchId);
 
-        MonthlySummaryVO.SummaryRowVO myRow = summary.getRows().stream()
+        MonthlySummaryVO.TierSummaryRowVO myHeadRow = summary.getHeadRows() != null ? summary.getHeadRows().stream()
                 .filter(r -> r.getExamineeUserId().equals(currentUserId))
-                .findFirst()
-                .orElse(null);
+                .findFirst().orElse(null) : null;
+        MonthlySummaryVO.TierSummaryRowVO myDeputyRow = summary.getDeputyRows() != null ? summary.getDeputyRows().stream()
+                .filter(r -> r.getExamineeUserId().equals(currentUserId))
+                .findFirst().orElse(null) : null;
 
-        if (myRow == null) {
-            throw new BusinessException(403, "您不在该月度考核名单中");
+        BigDecimal myScore = BigDecimal.ZERO;
+        int myRank = 1;
+        int totalExaminees = summary.getRows().size();
+
+        if (myHeadRow != null) {
+            myScore = myHeadRow.getCompositeScore();
+            myRank = myHeadRow.getRank();
+            totalExaminees = summary.getHeadRows().size();
+        } else if (myDeputyRow != null) {
+            myScore = myDeputyRow.getCompositeScore();
+            myRank = myDeputyRow.getRank();
+            totalExaminees = summary.getDeputyRows().size();
+        } else {
+            MonthlySummaryVO.SummaryRowVO myRow = summary.getRows().stream()
+                    .filter(r -> r.getExamineeUserId().equals(currentUserId))
+                    .findFirst()
+                    .orElse(null);
+            if (myRow == null) {
+                throw new BusinessException(403, "您不在该月度考核名单中");
+            }
+            myScore = myRow.getCompositeScore();
+            myRank = myRow.getRank();
         }
 
         // 规则：月度绩效结果只能看到自己总分和排名，不返回其他人员得分与榜单明细
@@ -975,9 +1022,9 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .batchId(batchId)
                 .batchName(summary.getBatchName())
                 .appraisalPeriod(summary.getAppraisalPeriod())
-                .myCompositeScore(myRow.getCompositeScore())
-                .myRank(myRow.getRank())
-                .totalExaminees(summary.getRows().size())
+                .myCompositeScore(myScore)
+                .myRank(myRank)
+                .totalExaminees(totalExaminees)
                 .rankList(Collections.emptyList())
                 .build();
     }

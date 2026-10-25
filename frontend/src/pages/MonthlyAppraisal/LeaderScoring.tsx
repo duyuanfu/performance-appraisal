@@ -276,6 +276,9 @@ export const LeaderScoringPage: React.FC = () => {
               >
                 {batches.map((b) => (
                   <Select.Option key={b.id} value={b.id}>
+                    <Tag color={b.category === 'DEPT_DEPUTY' ? 'geekblue' : 'cyan'}>
+                      {b.category === 'DEPT_DEPUTY' ? '部门副职' : '部门正职'}
+                    </Tag>
                     <span>
                       {b.batchName} ({b.appraisalPeriod})
                     </span>
