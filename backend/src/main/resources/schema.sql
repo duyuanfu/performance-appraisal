@@ -136,6 +136,16 @@ CREATE TABLE IF NOT EXISTS project_item (
     KEY idx_proj_batch (batch_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='参评项目表';
 
+CREATE TABLE IF NOT EXISTS project_role_weight (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    batch_id BIGINT NOT NULL COMMENT '批次ID',
+    role_category VARCHAR(32) NOT NULL COMMENT '角色分类: CENTER_LEADER_TOTAL, PRIMARY_LEADER, SUPERVISOR_LEADER, OTHER_LEADER, DEPT_HEAD, EXPERT',
+    role_name VARCHAR(64) NOT NULL COMMENT '角色名称',
+    weight DECIMAL(10,4) NOT NULL DEFAULT 10.0000 COMMENT '角色权重百分比',
+    sort_order INT NOT NULL DEFAULT 1 COMMENT '排序序号',
+    UNIQUE KEY uk_proj_batch_role_category (batch_id, role_category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='项目评审角色类别权重配置表';
+
 CREATE TABLE IF NOT EXISTS project_expert (
     id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     batch_id BIGINT NOT NULL COMMENT '评审批次ID',

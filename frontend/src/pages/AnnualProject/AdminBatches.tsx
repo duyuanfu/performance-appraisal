@@ -44,7 +44,7 @@ import {
   ProjectBatchVO,
   ProjectBatchSaveDTO,
   ProjectItemVO,
-  RoleWeightItem,
+  ProjectRoleWeightItem,
 } from '../../api/project';
 import { listUsersApi } from '../../api/user';
 import { UserVO } from '../../api/auth';
@@ -59,12 +59,16 @@ import { DeleteOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 
-const DEFAULT_PROJECT_ROLE_WEIGHTS: RoleWeightItem[] = [
-  { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导 (陈剑主任)', weight: 10, sortOrder: 1 },
-  { roleCategory: 'SUPERVISOR_LEADER', roleName: '中心分管领导 (对应申报部门领导)', weight: 15, sortOrder: 2 },
-  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导 (其余领导均分)', weight: 25, sortOrder: 3 },
-  { roleCategory: 'DEPT_HEAD', roleName: '部门正职评分 (全体部门正职均分)', weight: 40, sortOrder: 4 },
-  { roleCategory: 'EXPERT', roleName: '代表评分 (评审专家评审评分均分)', weight: 10, sortOrder: 5 },
+const DEFAULT_MAIN_ROLE_WEIGHTS: ProjectRoleWeightItem[] = [
+  { roleCategory: 'CENTER_LEADER_TOTAL', roleName: '中心领导综合评分小计', weight: 50, sortOrder: 1 },
+  { roleCategory: 'DEPT_HEAD', roleName: '部门正职评分', weight: 40, sortOrder: 2 },
+  { roleCategory: 'EXPERT', roleName: '代表评分 (评审专家)', weight: 10, sortOrder: 3 },
+];
+
+const DEFAULT_LEADER_SUB_WEIGHTS: ProjectRoleWeightItem[] = [
+  { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导 (陈剑主任)', weight: 20, sortOrder: 1 },
+  { roleCategory: 'SUPERVISOR_LEADER', roleName: '中心分管领导', weight: 30, sortOrder: 2 },
+  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导 (均分)', weight: 50, sortOrder: 3 },
 ];
 
 interface Props {
@@ -90,8 +94,9 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
   // Batch create / relaunch modal state
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [relaunchBatchId, setRelaunchBatchId] = useState<number | null>(null);
-  const [roleWeights, setRoleWeights] = useState<RoleWeightItem[]>(DEFAULT_PROJECT_ROLE_WEIGHTS);
   const [experts, setExperts] = useState<UserVO[]>([]);
+  const [mainRoleWeights, setMainRoleWeights] = useState<ProjectRoleWeightItem[]>(DEFAULT_MAIN_ROLE_WEIGHTS);
+  const [leaderSubWeights, setLeaderSubWeights] = useState<ProjectRoleWeightItem[]>(DEFAULT_LEADER_SUB_WEIGHTS);
   const [metrics, setMetrics] = useState<MetricItem[]>([]);
   const [form] = Form.useForm();
 
@@ -126,11 +131,14 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
     const templateType = isSpecialInnovation ? 'SPECIAL_INNOVATION' : 'TARGET_PROJECT';
     const defaultMetrics = await getDefaultTemplatesApi(templateType);
     setMetrics(defaultMetrics);
-    setRoleWeights(DEFAULT_PROJECT_ROLE_WEIGHTS);
+
+    setMainRoleWeights(DEFAULT_MAIN_ROLE_WEIGHTS);
+    setLeaderSubWeights(DEFAULT_LEADER_SUB_WEIGHTS);
 
     form.setFieldsValue({
       appraisalPeriod: dayjs(),
       batchName: `${dayjs().year()}年度原料中心${isSpecialInnovation ? '专项与创新任务' : '目标绩效任务'}评审`,
+      expertIds: experts.map((e) => e.id),
       dateRange: [dayjs(), dayjs().add(14, 'day')],
     });
 
@@ -152,35 +160,65 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
     setMetrics(activeMetrics);
 
     if (summary.roleWeights && summary.roleWeights.length > 0) {
-      setRoleWeights(summary.roleWeights);
+      const main = summary.roleWeights.filter((rw) =>
+        ['CENTER_LEADER_TOTAL', 'DEPT_HEAD', 'EXPERT'].includes(rw.roleCategory)
+      );
+      const sub = summary.roleWeights.filter((rw) =>
+        ['PRIMARY_LEADER', 'SUPERVISOR_LEADER', 'OTHER_LEADER'].includes(rw.roleCategory)
+      );
+      if (main.length === 3) setMainRoleWeights(main);
+      if (sub.length === 3) setLeaderSubWeights(sub);
     } else {
-      setRoleWeights(DEFAULT_PROJECT_ROLE_WEIGHTS);
+      setMainRoleWeights(DEFAULT_MAIN_ROLE_WEIGHTS);
+      setLeaderSubWeights(DEFAULT_LEADER_SUB_WEIGHTS);
     }
+
+    const expertIds = summary.experts.map((e) => e.expertUserId);
 
     form.setFieldsValue({
       batchName: `${batch.batchName} (重新发起)`,
       appraisalPeriod: dayjs(batch.appraisalPeriod),
+      expertIds: expertIds.length > 0 ? expertIds : experts.map((e) => e.id),
       dateRange: [dayjs(), dayjs().add(14, 'day')],
     });
 
     setCreateModalVisible(true);
   };
 
-  const handleRoleWeightChange = (category: string, weight: number | null) => {
-    setRoleWeights((prev) =>
+  const handleMainRoleWeightChange = (category: string, weight: number | null) => {
+    setMainRoleWeights((prev) =>
       prev.map((rw) => (rw.roleCategory === category ? { ...rw, weight: weight || 0 } : rw))
     );
   };
 
-  const totalRoleWeight = roleWeights.reduce((acc, cur) => acc + (Number(cur.weight) || 0), 0);
-  const isRoleWeightValid = Math.abs(totalRoleWeight - 100) < 0.0001;
+  const handleLeaderSubWeightChange = (category: string, weight: number | null) => {
+    setLeaderSubWeights((prev) =>
+      prev.map((rw) => (rw.roleCategory === category ? { ...rw, weight: weight || 0 } : rw))
+    );
+  };
+
+  const totalMainWeight = mainRoleWeights.reduce((acc, cur) => acc + (Number(cur.weight) || 0), 0);
+  const isMainWeightValid = Math.abs(totalMainWeight - 100) < 0.0001;
+
+  const totalLeaderSubWeight = leaderSubWeights.reduce((acc, cur) => acc + (Number(cur.weight) || 0), 0);
+  const isLeaderSubWeightValid = Math.abs(totalLeaderSubWeight - 100) < 0.0001;
 
   const handleCreateSubmit = async () => {
     try {
       const values = await form.validateFields();
 
-      if (!isRoleWeightValid) {
-        message.error(`考评主体角色权重合计必须等于 100.0000%（当前为 ${totalRoleWeight.toFixed(4)}%）`);
+      if (!values.expertIds || values.expertIds.length === 0) {
+        message.error('请至少选择一位参加评审的专家');
+        return;
+      }
+
+      if (!isMainWeightValid) {
+        message.error(`三大考评主体权重（中心领导 + 正职评分 + 代表评分）合计必须等于 100.0000%（当前为 ${totalMainWeight.toFixed(4)}%）`);
+        return;
+      }
+
+      if (!isLeaderSubWeightValid) {
+        message.error(`中心领导内部细分权重（主要领导 + 分管领导 + 其他领导）合计必须等于 100.0000%（当前为 ${totalLeaderSubWeight.toFixed(4)}%）`);
         return;
       }
 
@@ -211,6 +249,7 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
         id: relaunchBatchId || undefined,
         batchName: values.batchName,
         batchType: batchType,
+        category: values.category,
         appraisalPeriod: periodStr,
         startTime: values.dateRange?.[0]
           ? dayjs(values.dateRange[0]).format('YYYY-MM-DD HH:mm:ss')
@@ -218,7 +257,8 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
         endTime: values.dateRange?.[1]
           ? dayjs(values.dateRange[1]).format('YYYY-MM-DD HH:mm:ss')
           : undefined,
-        roleWeights: roleWeights,
+        roleWeights: [...mainRoleWeights, ...leaderSubWeights],
+        expertUserIds: values.expertIds,
         metrics: metrics,
       };
 
@@ -647,56 +687,45 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
             </Col>
           </Row>
 
+          <Divider orientation="left" style={{ margin: '12px 0' }}>
+            1. 考评主体角色及权重配置（按《需求文档.md》标准校验）
+          </Divider>
+
           <Alert
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
-            message={isSpecialInnovation ? '专项与创新任务评审全轨权重规则' : '目标绩效任务评审全轨权重规则'}
-            description="综合得分 = (中心主要领导评分×20% + 分管领导评分×30% + 其他中心领导评分×50%)×50% + 正职评分×40% + 代表评分(即评审专家)×10%。对应考评主体角色权重：主要领导 10%、分管领导 15%、其他领导 25%、部门正职 40%、评审专家 10%（合计 100%）。在册专家评委自动全量装配，无需手动输入单人权重。"
+            message="项目评审综合得分加权计算规则（统一标准）"
+            description="综合得分 =（中心主要领导评分×20% + 分管领导评分×30% + 其他中心领导评分×50%）× 50% + 正职评分×40% + 代表评分（评审专家）× 10%"
           />
 
-          <Divider orientation="left" style={{ margin: '12px 0' }}>
-            1. 考评主体角色及权重配置（满分 100% 校验）
-          </Divider>
-
           <div style={{ marginBottom: 16 }}>
-            <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center' }}>
-              <Text strong>主体角色权重分配：</Text>
-              {isRoleWeightValid ? (
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+              <Text strong>三大考评主体权重分配（满分 100% 校验）：</Text>
+              {isMainWeightValid ? (
                 <Tag color="success" style={{ marginLeft: 8 }}>
-                  合计：{totalRoleWeight.toFixed(4)}%（已满足100%）
+                  合计：{totalMainWeight.toFixed(4)}%（已满足100%）
                 </Tag>
               ) : (
                 <Tag color="error" style={{ marginLeft: 8 }}>
-                  合计：{totalRoleWeight.toFixed(4)}%（相差 {(100 - totalRoleWeight).toFixed(4)}%）
+                  合计：{totalMainWeight.toFixed(4)}%（相差 {(100 - totalMainWeight).toFixed(4)}%）
                 </Tag>
               )}
             </div>
             <Row gutter={[16, 16]}>
-              {roleWeights.map((rw) => (
-                <Col key={rw.roleCategory} span={rw.roleCategory === 'EXPERT' ? 24 : 12}>
+              {mainRoleWeights.map((rw) => (
+                <Col key={rw.roleCategory} span={8}>
                   <Card size="small" bodyStyle={{ padding: '8px 12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <Text strong style={{ fontSize: 13 }}>{rw.roleName}</Text>
-                        {rw.roleCategory === 'PRIMARY_LEADER' && <div style={{ fontSize: 11, color: '#8c8c8c' }}>占中心领导总权重的 20%</div>}
-                        {rw.roleCategory === 'SUPERVISOR_LEADER' && <div style={{ fontSize: 11, color: '#8c8c8c' }}>占中心领导总权重的 30%</div>}
-                        {rw.roleCategory === 'OTHER_LEADER' && <div style={{ fontSize: 11, color: '#8c8c8c' }}>占中心领导总权重的 50%</div>}
-                        {rw.roleCategory === 'DEPT_HEAD' && <div style={{ fontSize: 11, color: '#8c8c8c' }}>部门正职全员参与综合评分</div>}
-                        {rw.roleCategory === 'EXPERT' && (
-                          <div style={{ fontSize: 11, color: '#8c8c8c' }}>
-                            评审专家代表评分（在册评委专家 {experts.map((e) => e.realName).join('、')} 自动全量装配）
-                          </div>
-                        )}
-                      </div>
+                      <Text strong style={{ fontSize: 13 }}>{rw.roleName}</Text>
                       <InputNumber
                         value={rw.weight}
                         min={0}
                         max={100}
                         precision={4}
                         addonAfter="%"
-                        style={{ width: 140 }}
-                        onChange={(v) => handleRoleWeightChange(rw.roleCategory, v)}
+                        style={{ width: 120 }}
+                        onChange={(v) => handleMainRoleWeightChange(rw.roleCategory, v)}
                       />
                     </div>
                   </Card>
@@ -704,6 +733,62 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
               ))}
             </Row>
           </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+              <Text strong>中心领导内部细分权重（占中心领导 50% 小计内部 100% 校验）：</Text>
+              {isLeaderSubWeightValid ? (
+                <Tag color="success" style={{ marginLeft: 8 }}>
+                  内部合计：{totalLeaderSubWeight.toFixed(4)}%（已满足100%）
+                </Tag>
+              ) : (
+                <Tag color="error" style={{ marginLeft: 8 }}>
+                  内部合计：{totalLeaderSubWeight.toFixed(4)}%（相差 {(100 - totalLeaderSubWeight).toFixed(4)}%）
+                </Tag>
+              )}
+            </div>
+            <Row gutter={[16, 16]}>
+              {leaderSubWeights.map((rw) => (
+                <Col key={rw.roleCategory} span={8}>
+                  <Card size="small" bodyStyle={{ padding: '8px 12px', background: '#fafafa' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 13 }}>{rw.roleName}</Text>
+                      <InputNumber
+                        value={rw.weight}
+                        min={0}
+                        max={100}
+                        precision={4}
+                        addonAfter="%"
+                        style={{ width: 120 }}
+                        onChange={(v) => handleLeaderSubWeightChange(rw.roleCategory, v)}
+                      />
+                    </div>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+          </div>
+
+          <Divider orientation="left" style={{ margin: '12px 0' }}>
+            2. 参评专家名单选择（代表评分主体）
+          </Divider>
+
+          <Form.Item
+            name="expertIds"
+            label="选择参加评审的专家（自动预选系统专家，代表评分均分）"
+            rules={[{ required: true, message: '请至少选择一位评审专家' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="选择评审专家"
+            >
+              {experts.map((e) => (
+                <Select.Option key={e.id} value={e.id}>
+                  {e.realName} ({e.department} - {e.position || '专家'})
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
 
           <Divider orientation="left" style={{ margin: '12px 0' }}>
             2. 评审指标与权重配置（满分 100 分校验）

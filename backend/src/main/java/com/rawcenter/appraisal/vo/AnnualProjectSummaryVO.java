@@ -1,6 +1,6 @@
 package com.rawcenter.appraisal.vo;
 
-import com.rawcenter.appraisal.dto.MonthlyBatchSaveDTO;
+import com.rawcenter.appraisal.dto.ProjectBatchSaveDTO;
 import com.rawcenter.appraisal.entity.AppraisalMetric;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,7 +24,7 @@ public class AnnualProjectSummaryVO {
     private BigDecimal averageScore;
     private List<AppraisalMetric> metrics;
     private List<ExpertHeaderVO> experts;
-    private List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeights;
+    private List<ProjectBatchSaveDTO.RoleWeightDTO> roleWeights;
     private List<ProjectSummaryRowVO> rows;
 
     @Data

@@ -57,7 +57,7 @@ public class DatabaseInitializer implements CommandLineRunner {
             // 5. 检查并补充 project_score_record 表字段
             ensureColumn(metaData, stmt, "project_score_record", "evaluator_role_type", "VARCHAR(32) DEFAULT '' COMMENT '打分角色分类'");
 
-            // 6. 自动检查并创建 monthly_role_weight 表
+            // 6. 自动检查并创建 monthly_role_weight 与 project_role_weight 表
             stmt.execute("CREATE TABLE IF NOT EXISTS monthly_role_weight (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID'," +
                     "batch_id BIGINT NOT NULL COMMENT '批次ID'," +
@@ -67,6 +67,16 @@ public class DatabaseInitializer implements CommandLineRunner {
                     "sort_order INT NOT NULL DEFAULT 1 COMMENT '排序序号'," +
                     "UNIQUE KEY uk_batch_role_category (batch_id, role_category)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='月度考核角色类别权重配置表'");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS project_role_weight (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID'," +
+                    "batch_id BIGINT NOT NULL COMMENT '批次ID'," +
+                    "role_category VARCHAR(32) NOT NULL COMMENT '角色分类'," +
+                    "role_name VARCHAR(64) NOT NULL COMMENT '角色名称'," +
+                    "weight DECIMAL(10,4) NOT NULL DEFAULT 10.0000 COMMENT '权重百分比'," +
+                    "sort_order INT NOT NULL DEFAULT 1 COMMENT '排序序号'," +
+                    "UNIQUE KEY uk_proj_batch_role_category (batch_id, role_category)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='项目评审角色类别权重配置表'");
 
             // 7. 清理可能残留的 V1 测试临时旧账号
             stmt.execute("DELETE FROM sys_user WHERE username IN ('leader_zhang', 'expert_wang', 'expert_zhao', 'expert_sun', 'dept_qian', 'dept_zhou', 'dept_wu', 'dept_zheng')");

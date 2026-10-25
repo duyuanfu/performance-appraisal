@@ -28,12 +28,25 @@ public class ProjectBatchSaveDTO {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime endTime;
 
-    private List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeights;
+    // 考评主体角色权重配置（满分 100% 校验）
+    private List<RoleWeightDTO> roleWeights;
 
+    // 评审专家用户列表
+    private List<Long> expertUserIds;
+
+    // 兼容历史单一专家权重项
     private List<ExpertWeightDTO> experts;
 
     @NotEmpty(message = "请配置评审指标")
     private List<MetricDTO> metrics;
+
+    @Data
+    public static class RoleWeightDTO {
+        private String roleCategory; // PRIMARY_LEADER, SUPERVISOR_LEADER, OTHER_LEADER, CENTER_LEADER_TOTAL, DEPT_HEAD, EXPERT
+        private String roleName;
+        private BigDecimal weight;
+        private Integer sortOrder;
+    }
 
     @Data
     public static class ExpertWeightDTO {

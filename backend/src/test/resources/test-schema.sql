@@ -130,6 +130,16 @@ CREATE TABLE IF NOT EXISTS project_item (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS project_role_weight (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    role_category VARCHAR(32) NOT NULL,
+    role_name VARCHAR(64) NOT NULL,
+    weight DECIMAL(10,4) NOT NULL DEFAULT 10.0000,
+    sort_order INT NOT NULL DEFAULT 1,
+    UNIQUE KEY uk_proj_batch_role_category (batch_id, role_category)
+);
+
 CREATE TABLE IF NOT EXISTS project_expert (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     batch_id BIGINT NOT NULL,
