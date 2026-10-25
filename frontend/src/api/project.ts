@@ -36,6 +36,15 @@ export interface ProjectBatchVO {
   startTime?: string;
   endTime?: string;
   status: 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED';
+  totalEvaluatorCount?: number;
+  submittedEvaluatorCount?: number;
+  centerLeaderCount?: number;
+  submittedCenterLeaderCount?: number;
+  deptHeadCount?: number;
+  submittedDeptHeadCount?: number;
+  expertCount?: number;
+  submittedExpertCount?: number;
+  roleWeights?: ProjectRoleWeightItem[];
   createdAt: string;
 }
 

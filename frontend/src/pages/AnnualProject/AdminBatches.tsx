@@ -207,11 +207,6 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
     try {
       const values = await form.validateFields();
 
-      if (!values.expertIds || values.expertIds.length === 0) {
-        message.error('请至少选择一位参加评审的专家');
-        return;
-      }
-
       if (!isMainWeightValid) {
         message.error(`三大考评主体权重（中心领导 + 正职评分 + 代表评分）合计必须等于 100.0000%（当前为 ${totalMainWeight.toFixed(4)}%）`);
         return;
@@ -258,7 +253,6 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
           ? dayjs(values.dateRange[1]).format('YYYY-MM-DD HH:mm:ss')
           : undefined,
         roleWeights: [...mainRoleWeights, ...leaderSubWeights],
-        expertUserIds: values.expertIds,
         metrics: metrics,
       };
 
@@ -336,6 +330,49 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
           COMPLETED: { color: 'success', text: '已归档' },
         };
         return <Tag color={map[status]?.color}>{map[status]?.text || status}</Tag>;
+      },
+    },
+    {
+      title: '考评人员打分进度',
+      key: 'progress',
+      width: 260,
+      render: (_: any, record: ProjectBatchVO) => {
+        const total = record.totalEvaluatorCount || 0;
+        const submitted = record.submittedEvaluatorCount || 0;
+        const isComplete = total > 0 && submitted === total;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600 }}>
+                总计: {submitted} / {total} 人
+              </span>
+              <Button
+                type="link"
+                size="small"
+                style={{ padding: 0, height: 'auto', fontSize: 12 }}
+                onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName })}
+              >
+                <Tag
+                  color={isComplete ? 'success' : 'processing'}
+                  style={{ marginRight: 0, cursor: 'pointer' }}
+                >
+                  详情与催办
+                </Tag>
+              </Button>
+            </div>
+            <div style={{ fontSize: 11, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              <Tag color="blue" style={{ margin: 0 }}>
+                中心领导: {record.submittedCenterLeaderCount ?? 0}/{record.centerLeaderCount ?? 0}
+              </Tag>
+              <Tag color="purple" style={{ margin: 0 }}>
+                部门正职: {record.submittedDeptHeadCount ?? 0}/{record.deptHeadCount ?? 0}
+              </Tag>
+              <Tag color="orange" style={{ margin: 0 }}>
+                评审专家: {record.submittedExpertCount ?? 0}/{record.expertCount ?? 0}
+              </Tag>
+            </div>
+          </div>
+        );
       },
     },
     {
@@ -768,27 +805,6 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
               ))}
             </Row>
           </div>
-
-          <Divider orientation="left" style={{ margin: '12px 0' }}>
-            2. 参评专家名单选择（代表评分主体）
-          </Divider>
-
-          <Form.Item
-            name="expertIds"
-            label="选择参加评审的专家（自动预选系统专家，代表评分均分）"
-            rules={[{ required: true, message: '请至少选择一位评审专家' }]}
-          >
-            <Select
-              mode="multiple"
-              placeholder="选择评审专家"
-            >
-              {experts.map((e) => (
-                <Select.Option key={e.id} value={e.id}>
-                  {e.realName} ({e.department} - {e.position || '专家'})
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
 
           <Divider orientation="left" style={{ margin: '12px 0' }}>
             2. 评审指标与权重配置（满分 100 分校验）

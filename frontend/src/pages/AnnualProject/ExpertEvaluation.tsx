@@ -344,26 +344,47 @@ export const ExpertEvaluationPage: React.FC = () => {
         </Row>
 
         {evaluationData && (
-          <div style={{ marginTop: 14, display: 'flex', gap: 24, alignItems: 'center' }}>
-            <Space>
-              <Text type="secondary">评审截止时间：</Text>
-              <Text strong>
-                {evaluationData.endTime
-                  ? dayjs(evaluationData.endTime).format('YYYY-MM-DD HH:mm:ss')
-                  : '无限制'}
-              </Text>
-              {isExpired && <Tag color="error">已截止锁定</Tag>}
-            </Space>
+          <>
+            <div style={{ marginTop: 14, display: 'flex', gap: 24, alignItems: 'center' }}>
+              <Space>
+                <Text type="secondary">评审截止时间：</Text>
+                <Text strong>
+                  {evaluationData.endTime
+                    ? dayjs(evaluationData.endTime).format('YYYY-MM-DD HH:mm:ss')
+                    : '无限制'}
+                </Text>
+                {isExpired && <Tag color="error">已截止锁定</Tag>}
+              </Space>
 
-            <Space>
-              <Text type="secondary">我的评审状态：</Text>
-              {isSubmitted ? (
-                <Tag color="success" icon={<CheckCircleOutlined />}>已正式提交</Tag>
-              ) : (
-                <Tag color="warning" icon={<ClockCircleOutlined />}>草稿 (未提交)</Tag>
-              )}
-            </Space>
-          </div>
+              <Space>
+                <Text type="secondary">我的评审状态：</Text>
+                {isSubmitted ? (
+                  <Tag color="success" icon={<CheckCircleOutlined />}>已正式提交</Tag>
+                ) : (
+                  <Tag color="warning" icon={<ClockCircleOutlined />}>草稿 (未提交)</Tag>
+                )}
+              </Space>
+            </div>
+
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginTop: 12 }}
+              message={
+                <span>
+                  当前考评主体：<strong style={{ color: '#1890ff' }}>{user?.realName}</strong>（
+                  {user?.positionCategory === 'PRIMARY_LEADER'
+                    ? '中心主要领导'
+                    : user?.positionCategory === 'CENTER_LEADER'
+                    ? '中心分管/其他领导'
+                    : user?.positionCategory === 'DEPT_HEAD'
+                    ? '部门正职'
+                    : '评审专家'} - {user?.department || '原料中心'}）
+                </span>
+              }
+              description="您属于本次项目评审的考评主体之一。系统将根据您的主体角色属性自动加权聚合计算项目综合得分与系数。"
+            />
+          </>
         )}
       </Card>
 

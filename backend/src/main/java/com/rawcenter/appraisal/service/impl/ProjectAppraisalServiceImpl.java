@@ -16,6 +16,7 @@ import com.rawcenter.appraisal.vo.AnnualProjectSummaryVO;
 import com.rawcenter.appraisal.vo.ExpertEvaluationVO;
 import com.rawcenter.appraisal.vo.ProjectItemVO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
@@ -73,19 +75,52 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             wrapper.in(AppraisalBatch::getBatchType, Arrays.asList("TARGET_PROJECT", "SPECIAL_INNOVATION", "ANNUAL_PROJECT"));
         }
 
-        // 数据权限隔离：评审专家/领导角色仅可见分配给自己评审的批次，且未发布的草稿对专家完全不可见！
-        if (("EXPERT".equalsIgnoreCase(activeRole) || "LEADER".equalsIgnoreCase(activeRole)) && currentUserId != null) {
-            List<ProjectExpert> myAssignments = projectExpertMapper.selectList(new LambdaQueryWrapper<ProjectExpert>()
-                    .eq(ProjectExpert::getExpertUserId, currentUserId));
-            if (!myAssignments.isEmpty()) {
-                List<Long> allowedBatchIds = myAssignments.stream().map(ProjectExpert::getBatchId).collect(Collectors.toList());
-                wrapper.in(AppraisalBatch::getId, allowedBatchIds);
-            }
+        // 数据权限隔离：未发布的草稿对非管理员完全不可见；所有评分主体（中心领导、部门正职、评审专家）均可查看已发布的进行中和已归档批次
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(activeRole) || "SYS_ADMIN".equalsIgnoreCase(activeRole);
+        if (!isAdmin) {
             wrapper.ne(AppraisalBatch::getStatus, "DRAFT");
         }
 
         wrapper.orderByDesc(AppraisalBatch::getCreatedAt);
-        return batchMapper.selectList(wrapper);
+        List<AppraisalBatch> batches = batchMapper.selectList(wrapper);
+
+        for (AppraisalBatch b : batches) {
+            List<com.rawcenter.appraisal.vo.EvaluatorProgressVO> progressList = getExpertProgress(b.getId());
+            int totalEvaluators = progressList.size();
+            int submittedEvaluators = (int) progressList.stream().filter(p -> "SUBMITTED".equals(p.getStatus())).count();
+
+            int centerCount = (int) progressList.stream()
+                    .filter(p -> "PRIMARY_LEADER".equals(p.getEvaluatorRoleType()) || "CENTER_LEADER".equals(p.getEvaluatorRoleType()))
+                    .count();
+            int submittedCenter = (int) progressList.stream()
+                    .filter(p -> ("PRIMARY_LEADER".equals(p.getEvaluatorRoleType()) || "CENTER_LEADER".equals(p.getEvaluatorRoleType())) && "SUBMITTED".equals(p.getStatus()))
+                    .count();
+
+            int deptHeadCount = (int) progressList.stream()
+                    .filter(p -> "DEPT_HEAD".equals(p.getEvaluatorRoleType()))
+                    .count();
+            int submittedDeptHead = (int) progressList.stream()
+                    .filter(p -> "DEPT_HEAD".equals(p.getEvaluatorRoleType()) && "SUBMITTED".equals(p.getStatus()))
+                    .count();
+
+            int expertCount = (int) progressList.stream()
+                    .filter(p -> "EXPERT".equals(p.getEvaluatorRoleType()))
+                    .count();
+            int submittedExpert = (int) progressList.stream()
+                    .filter(p -> "EXPERT".equals(p.getEvaluatorRoleType()) && "SUBMITTED".equals(p.getStatus()))
+                    .count();
+
+            b.setTotalEvaluatorCount(totalEvaluators);
+            b.setSubmittedEvaluatorCount(submittedEvaluators);
+            b.setCenterLeaderCount(centerCount);
+            b.setSubmittedCenterLeaderCount(submittedCenter);
+            b.setDeptHeadCount(deptHeadCount);
+            b.setSubmittedDeptHeadCount(submittedDeptHead);
+            b.setExpertCount(expertCount);
+            b.setSubmittedExpertCount(submittedExpert);
+        }
+
+        return batches;
     }
 
     @Override
@@ -94,6 +129,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         if (batch == null) {
             throw new BusinessException(404, "批次不存在");
         }
+        List<ProjectRoleWeight> savedRoleWeights = projectRoleWeightMapper.selectList(new LambdaQueryWrapper<ProjectRoleWeight>()
+                .eq(ProjectRoleWeight::getBatchId, batchId)
+                .orderByAsc(ProjectRoleWeight::getSortOrder));
+        batch.setRoleWeights(savedRoleWeights);
         return batch;
     }
 
@@ -242,7 +281,19 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         Long expertCount = projectExpertMapper.selectCount(new LambdaQueryWrapper<ProjectExpert>()
                 .eq(ProjectExpert::getBatchId, batchId));
         if (expertCount == 0) {
-            throw new BusinessException(400, "该批次尚未配置评审专家，无法发布。请先配置评审专家后再发布任务！");
+            // 自动装配系统全部评审专家
+            List<SysUser> systemExperts = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                    .eq(SysUser::getPositionCategory, "EXPERT")
+                    .eq(SysUser::getStatus, 1));
+            int expCount = systemExperts.size();
+            BigDecimal perWeight = expCount > 0 ? new BigDecimal("100").divide(new BigDecimal(expCount), 4, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+            for (SysUser exp : systemExperts) {
+                projectExpertMapper.insert(ProjectExpert.builder()
+                        .batchId(batchId)
+                        .expertUserId(exp.getId())
+                        .weight(perWeight)
+                        .build());
+            }
         }
 
         batch.setStatus("IN_PROGRESS");
@@ -693,58 +744,84 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             throw new BusinessException(404, "批次不存在");
         }
 
-        List<ProjectExpert> experts = projectExpertMapper.selectList(new LambdaQueryWrapper<ProjectExpert>()
-                .eq(ProjectExpert::getBatchId, batchId));
-        if (experts.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        Long projectCount = projectItemMapper.selectCount(new LambdaQueryWrapper<ProjectItem>()
+        Long projectCountLong = projectItemMapper.selectCount(new LambdaQueryWrapper<ProjectItem>()
                 .eq(ProjectItem::getBatchId, batchId));
-
-        List<Long> expertUserIds = experts.stream().map(ProjectExpert::getExpertUserId).collect(Collectors.toList());
-        Map<Long, SysUser> userMap = userMapper.selectBatchIds(expertUserIds)
-                .stream().collect(Collectors.toMap(SysUser::getId, u -> u));
+        int projectCount = projectCountLong.intValue();
 
         List<ProjectScoreRecord> allRecords = scoreRecordMapper.selectList(new LambdaQueryWrapper<ProjectScoreRecord>()
                 .eq(ProjectScoreRecord::getBatchId, batchId));
-
-        Map<Long, List<ProjectScoreRecord>> recordsByExpert = allRecords.stream()
+        Map<Long, List<ProjectScoreRecord>> recordsByEvaluator = allRecords.stream()
                 .collect(Collectors.groupingBy(ProjectScoreRecord::getExpertUserId));
 
         List<com.rawcenter.appraisal.vo.EvaluatorProgressVO> result = new ArrayList<>();
-        for (ProjectExpert exp : experts) {
-            SysUser u = userMap.get(exp.getExpertUserId());
-            List<ProjectScoreRecord> records = recordsByExpert.getOrDefault(exp.getExpertUserId(), Collections.emptyList());
 
-            String status = "NOT_STARTED";
-            LocalDateTime submittedAt = null;
+        // 1. 中心领导（中心主要领导与中心领导）
+        List<SysUser> centerLeaders = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                .in(SysUser::getPositionCategory, Arrays.asList("PRIMARY_LEADER", "CENTER_LEADER"))
+                .eq(SysUser::getStatus, 1)
+                .orderByAsc(SysUser::getId));
+        for (SysUser cl : centerLeaders) {
+            String roleType = "PRIMARY_LEADER".equalsIgnoreCase(cl.getPositionCategory()) ? "PRIMARY_LEADER" : "CENTER_LEADER";
+            String roleName = "PRIMARY_LEADER".equalsIgnoreCase(cl.getPositionCategory()) ? "中心主要领导" : "中心领导";
+            result.add(buildProjectEvaluatorProgress(cl, roleType, roleName, projectCount, recordsByEvaluator.get(cl.getId())));
+        }
 
-            if (!records.isEmpty()) {
-                boolean allSubmitted = records.size() == projectCount && records.stream().allMatch(r -> "SUBMITTED".equals(r.getStatus()));
-                if (allSubmitted) {
-                    status = "SUBMITTED";
-                    submittedAt = records.get(0).getSubmittedAt();
-                } else {
-                    status = "DRAFT";
-                }
-            }
+        // 2. 部门正职
+        List<SysUser> deptHeads = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getPositionCategory, "DEPT_HEAD")
+                .eq(SysUser::getStatus, 1)
+                .orderByAsc(SysUser::getId));
+        for (SysUser dh : deptHeads) {
+            result.add(buildProjectEvaluatorProgress(dh, "DEPT_HEAD", "部门正职", projectCount, recordsByEvaluator.get(dh.getId())));
+        }
 
-            result.add(com.rawcenter.appraisal.vo.EvaluatorProgressVO.builder()
-                    .userId(exp.getExpertUserId())
-                    .realName(u != null ? u.getRealName() : "未知专家")
-                    .department(u != null ? u.getDepartment() : "")
-                    .position(u != null ? u.getPosition() : "")
-                    .phone(u != null ? u.getPhone() : "")
-                    .weight(exp.getWeight())
-                    .status(status)
-                    .scoredCount(records.size())
-                    .totalTargetCount(projectCount.intValue())
-                    .submittedAt(submittedAt)
-                    .build());
+        // 3. 评审专家
+        List<SysUser> experts = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getPositionCategory, "EXPERT")
+                .eq(SysUser::getStatus, 1)
+                .orderByAsc(SysUser::getId));
+        for (SysUser exp : experts) {
+            result.add(buildProjectEvaluatorProgress(exp, "EXPERT", "评审专家", projectCount, recordsByEvaluator.get(exp.getId())));
         }
 
         return result;
+    }
+
+    private com.rawcenter.appraisal.vo.EvaluatorProgressVO buildProjectEvaluatorProgress(
+            SysUser u, String roleType, String roleName, int projectCount, List<ProjectScoreRecord> records) {
+        String status = "NOT_STARTED";
+        LocalDateTime submittedAt = null;
+        int scoredCount = 0;
+
+        if (!CollectionUtils.isEmpty(records)) {
+            scoredCount = records.size();
+            boolean allSubmitted = projectCount > 0 && scoredCount >= projectCount && records.stream().allMatch(r -> "SUBMITTED".equals(r.getStatus()));
+            if (allSubmitted) {
+                status = "SUBMITTED";
+                submittedAt = records.stream()
+                        .map(ProjectScoreRecord::getSubmittedAt)
+                        .filter(Objects::nonNull)
+                        .max(Comparator.naturalOrder())
+                        .orElse(null);
+            } else {
+                status = "DRAFT";
+            }
+        }
+
+        return com.rawcenter.appraisal.vo.EvaluatorProgressVO.builder()
+                .userId(u.getId())
+                .realName(u.getRealName())
+                .department(u.getDepartment())
+                .position(u.getPosition())
+                .phone(u.getPhone())
+                .evaluatorRoleType(roleType)
+                .evaluatorRoleName(roleName)
+                .targetDesc("参评项目 " + projectCount + " 个")
+                .status(status)
+                .scoredCount(scoredCount)
+                .totalTargetCount(projectCount)
+                .submittedAt(submittedAt)
+                .build();
     }
 
     @Override
@@ -755,6 +832,19 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         }
         if (!"IN_PROGRESS".equals(batch.getStatus())) {
             throw new BusinessException(400, "仅支持对进行中的评审批次发送催促提醒");
+        }
+        if (expertUserId != null) {
+            SysUser u = userMapper.selectById(expertUserId);
+            log.info("[Urge] 向项目考评人员 {} (ID: {}) 发送催办提醒: 请尽快完成【{}】项目评审打分！",
+                    u != null ? u.getRealName() : expertUserId, expertUserId, batch.getBatchName());
+        } else {
+            List<com.rawcenter.appraisal.vo.EvaluatorProgressVO> progressList = getExpertProgress(batchId);
+            for (com.rawcenter.appraisal.vo.EvaluatorProgressVO p : progressList) {
+                if (!"SUBMITTED".equals(p.getStatus())) {
+                    log.info("[Urge] 批量催办未完成项目考评人 {} (ID: {}, 角色: {}): 请尽快完成【{}】项目评审打分！",
+                            p.getRealName(), p.getUserId(), p.getEvaluatorRoleName(), batch.getBatchName());
+                }
+            }
         }
     }
 

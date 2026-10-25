@@ -350,7 +350,7 @@ public class AppraisalFlowTest {
 
         // Test Expert Progress & Urge
         List<EvaluatorProgressVO> expertProgress = projectService.getExpertProgress(batchId);
-        Assertions.assertEquals(2, expertProgress.size());
+        Assertions.assertEquals(8, expertProgress.size(), "项目评审全量考评人应包含3位中心领导+3位部门正职+2位评审专家");
         projectService.urgeExpert(batchId, 32L);
 
         // 4. Expert 1 (徐济仓, id=32) Scores
