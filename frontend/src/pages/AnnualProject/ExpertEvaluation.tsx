@@ -180,6 +180,34 @@ export const ExpertEvaluationPage: React.FC = () => {
 
   const currentProject = evaluationData?.projects.find((p) => p.projectId === selectedProjectId);
 
+  const baseRoleName = (() => {
+    switch (user?.positionCategory) {
+      case 'PRIMARY_LEADER':
+        return '中心主要领导';
+      case 'CENTER_LEADER':
+        return '其他中心领导';
+      case 'DEPT_HEAD':
+        return '部门正职';
+      case 'EXPERT':
+        return '评审专家';
+      default:
+        return '考评人员';
+    }
+  })();
+
+  const totalProjectCount = evaluationData?.projects.length || 0;
+  const supervisorProjectCount =
+    evaluationData?.projects.filter((p) => p.isSupervisor).length || 0;
+  const roleSummary = (() => {
+    if (supervisorProjectCount === 0) return baseRoleName;
+    if (supervisorProjectCount === totalProjectCount) {
+      return `分管领导（全部 ${totalProjectCount} 个项目）`;
+    }
+    return `分管领导（${supervisorProjectCount} 个项目） / ${baseRoleName}（其余 ${
+      totalProjectCount - supervisorProjectCount
+    } 个项目）`;
+  })();
+
   const dynamicColumns = [
     {
       title: '项目序号',
@@ -216,6 +244,24 @@ export const ExpertEvaluationPage: React.FC = () => {
           {val}
         </Button>
       ),
+    },
+    {
+      title: '分管领导',
+      dataIndex: 'supervisorName',
+      key: 'supervisorName',
+      width: 110,
+      render: (name: string) => name || '-',
+    },
+    {
+      title: '我在本项目的角色',
+      key: 'myRole',
+      width: 150,
+      render: (_: any, record: any) =>
+        record.isSupervisor ? (
+          <Tag color="gold">分管领导</Tag>
+        ) : (
+          <Tag color="blue">{record.myRoleName || baseRoleName}</Tag>
+        ),
     },
     ...(evaluationData?.metrics || []).map((m) => ({
       title: `${m.metricName}（${Number(m.maxScore).toFixed(0)}分）`,
@@ -373,16 +419,10 @@ export const ExpertEvaluationPage: React.FC = () => {
               message={
                 <span>
                   当前考评主体：<strong style={{ color: '#1890ff' }}>{user?.realName}</strong>（
-                  {user?.positionCategory === 'PRIMARY_LEADER'
-                    ? '中心主要领导'
-                    : user?.positionCategory === 'CENTER_LEADER'
-                    ? '中心分管/其他领导'
-                    : user?.positionCategory === 'DEPT_HEAD'
-                    ? '部门正职'
-                    : '评审专家'} - {user?.department || '原料中心'}）
+                  {roleSummary} - {user?.department || '原料中心'}）
                 </span>
               }
-              description="您属于本次项目评审的考评主体之一。系统将根据您的主体角色属性自动加权聚合计算项目综合得分与系数。"
+              description="系统按“项目”自动识别您的考评主体角色：若某项目选择您为分管领导，您的评分将计入该项目的“分管领导评分”；其余项目则按其他中心领导/正职/专家角色计分。"
             />
           </>
         )}
@@ -447,9 +487,9 @@ export const ExpertEvaluationPage: React.FC = () => {
               <Text>{dayjs().format('YYYY-MM-DD')}</Text>
             </Space>
             <Space>
-              <Text strong>评审专家：</Text>
+              <Text strong>考评主体：</Text>
               <Tag color="purple" style={{ fontSize: 13, padding: '2px 8px' }}>
-                {user?.realName}
+                {user?.realName}（{roleSummary}）
               </Tag>
             </Space>
           </Space>

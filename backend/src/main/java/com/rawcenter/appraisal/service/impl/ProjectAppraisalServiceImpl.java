@@ -532,6 +532,15 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         Map<Long, ProjectScoreRecord> recordMap = records.stream()
                 .collect(Collectors.toMap(ProjectScoreRecord::getProjectId, r -> r));
 
+        List<Long> supervisorIds = projects.stream()
+                .map(ProjectItem::getSupervisorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, SysUser> supervisorMap = supervisorIds.isEmpty() ? Collections.emptyMap()
+                : userMapper.selectBatchIds(supervisorIds).stream()
+                .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
+
         String submissionStatus = "DRAFT";
         if (!records.isEmpty()) {
             boolean allSubmitted = records.size() == projects.size() && records.stream().allMatch(r -> "SUBMITTED".equals(r.getStatus()));
@@ -560,6 +569,11 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .projectCode(p.getProjectCode())
                     .projectName(p.getProjectName())
                     .ownerName(p.getOwnerName())
+                    .supervisorId(p.getSupervisorId())
+                    .supervisorName(p.getSupervisorId() != null && supervisorMap.get(p.getSupervisorId()) != null
+                            ? supervisorMap.get(p.getSupervisorId()).getRealName() : "")
+                    .isSupervisor(p.getSupervisorId() != null && p.getSupervisorId().equals(expertUserId))
+                    .myRoleName(resolveProjectRoleName(evaluatorPos, p.getSupervisorId(), expertUserId))
                     .materialPdfName(p.getMaterialPdfName())
                     .hasMaterial(StringUtils.hasText(p.getMaterialPdfPath()))
                     .attachmentPdfName(p.getAttachmentPdfName())
@@ -582,6 +596,25 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .metrics(metrics)
                 .projects(projectRows)
                 .build();
+    }
+
+    private String resolveProjectRoleName(String evaluatorPos, Long supervisorId, Long currentUserId) {
+        if (supervisorId != null && supervisorId.equals(currentUserId)) {
+            return "分管领导";
+        }
+        if ("PRIMARY_LEADER".equalsIgnoreCase(evaluatorPos)) {
+            return "中心主要领导";
+        }
+        if ("CENTER_LEADER".equalsIgnoreCase(evaluatorPos)) {
+            return "其他中心领导";
+        }
+        if ("DEPT_HEAD".equalsIgnoreCase(evaluatorPos)) {
+            return "部门正职";
+        }
+        if ("EXPERT".equalsIgnoreCase(evaluatorPos)) {
+            return "评审专家";
+        }
+        return "考评人员";
     }
 
     @Override

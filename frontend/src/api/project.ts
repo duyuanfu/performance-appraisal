@@ -96,6 +96,10 @@ export interface ExpertEvaluationVO {
     projectCode: string;
     projectName: string;
     ownerName: string;
+    supervisorId?: number;
+    supervisorName?: string;
+    myRoleName?: string;
+    isSupervisor?: boolean;
     materialPdfName?: string;
     hasMaterial: boolean;
     attachmentPdfName?: string;
