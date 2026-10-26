@@ -298,6 +298,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
         const total = record.totalEvaluatorCount ?? record.leaderCount ?? 0;
         const submitted = record.submittedEvaluatorCount ?? record.submittedLeaderCount ?? 0;
         const isComplete = total > 0 && submitted === total;
+        const isDraft = record.status === 'DRAFT';
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -307,14 +308,16 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
               <Button
                 type="link"
                 size="small"
+                disabled={isDraft}
+                title={isDraft ? '发布后可查看进度' : '查看进度'}
                 style={{ padding: 0, height: 'auto', fontSize: 12 }}
                 onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName, examineeCount: record.examineeCount })}
               >
                 <Tag
-                  color={isComplete ? 'success' : 'processing'}
-                  style={{ marginRight: 0, cursor: 'pointer' }}
+                  color={isDraft ? 'default' : isComplete ? 'success' : 'processing'}
+                  style={{ marginRight: 0, cursor: isDraft ? 'not-allowed' : 'pointer' }}
                 >
-                  详情与催办
+                  进度
                 </Tag>
               </Button>
             </div>
@@ -364,9 +367,11 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
             type="link"
             size="small"
             icon={<BellOutlined />}
+            disabled={record.status === 'DRAFT'}
+            title={record.status === 'DRAFT' ? '发布后可查看进度' : '查看进度'}
             onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName, examineeCount: record.examineeCount })}
           >
-            催促打分
+            进度
           </Button>
 
           {record.status === 'DRAFT' && (
