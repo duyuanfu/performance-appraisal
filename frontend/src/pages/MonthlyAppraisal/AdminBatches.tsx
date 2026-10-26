@@ -18,6 +18,7 @@ import {
   Divider,
   Radio,
   Alert,
+  Segmented,
 } from 'antd';
 import {
   PlusOutlined,
@@ -67,7 +68,11 @@ const DEFAULT_DEPUTY_ROLE_WEIGHTS: RoleWeightItem[] = [
   { roleCategory: 'PEER_DEPUTY', roleName: '部门副职互评 (其余副职均分)', weight: 15, sortOrder: 4 },
 ];
 
-export const MonthlyAdminBatchesPage: React.FC = () => {
+interface Props {
+  category?: 'DEPT_HEAD' | 'DEPT_DEPUTY';
+}
+
+export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
   const { activeRole } = useAuth();
   const [batches, setBatches] = useState<MonthlyBatchVO[]>([]);
   const [loading, setLoading] = useState(false);
@@ -78,16 +83,29 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
     examineeCount?: number;
   } | null>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT'>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'DEPT_HEAD' | 'DEPT_DEPUTY'>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'DEPT_HEAD' | 'DEPT_DEPUTY'>(category || 'ALL');
 
   // Batch create modal state
   const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [targetCategory, setTargetCategory] = useState<'DEPT_HEAD' | 'DEPT_DEPUTY'>('DEPT_HEAD');
+  const [targetCategory, setTargetCategory] = useState<'DEPT_HEAD' | 'DEPT_DEPUTY'>(category || 'DEPT_HEAD');
   const [relaunchBatchId, setRelaunchBatchId] = useState<number | null>(null);
-  const [roleWeights, setRoleWeights] = useState<RoleWeightItem[]>(DEFAULT_HEAD_ROLE_WEIGHTS);
+  const [roleWeights, setRoleWeights] = useState<RoleWeightItem[]>(
+    category === 'DEPT_DEPUTY' ? DEFAULT_DEPUTY_ROLE_WEIGHTS : DEFAULT_HEAD_ROLE_WEIGHTS
+  );
   const [examineeCandidates, setExamineeCandidates] = useState<UserVO[]>([]);
   const [metrics, setMetrics] = useState<MetricItem[]>([]);
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (category) {
+      setCategoryFilter(category);
+      setTargetCategory(category);
+      setRoleWeights(category === 'DEPT_DEPUTY' ? DEFAULT_DEPUTY_ROLE_WEIGHTS : DEFAULT_HEAD_ROLE_WEIGHTS);
+    } else {
+      // 从正职/副职专属页返回综合管理页时，恢复“全部”分类，避免筛选状态残留
+      setCategoryFilter('ALL');
+    }
+  }, [category]);
 
   const loadBatches = async () => {
     setLoading(true);
@@ -115,13 +133,17 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
     const defaultMetrics = await getDefaultTemplatesApi('MONTHLY');
     setMetrics(defaultMetrics);
 
-    const initialCat = 'DEPT_HEAD';
+    const initialCat =
+      category ||
+      (categoryFilter === 'DEPT_HEAD' || categoryFilter === 'DEPT_DEPUTY'
+        ? categoryFilter
+        : 'DEPT_HEAD');
     setTargetCategory(initialCat);
-    setRoleWeights(DEFAULT_HEAD_ROLE_WEIGHTS);
+    setRoleWeights(initialCat === 'DEPT_DEPUTY' ? DEFAULT_DEPUTY_ROLE_WEIGHTS : DEFAULT_HEAD_ROLE_WEIGHTS);
 
     form.setFieldsValue({
       appraisalPeriod: dayjs(),
-      batchName: `${dayjs().format('YYYY年M月')}内设部门正职绩效考核`,
+      batchName: `${dayjs().format('YYYY年M月')}内设部门${initialCat === 'DEPT_DEPUTY' ? '副职' : '正职'}绩效考核`,
       examineeUserIds: examineeCandidates
         .filter((u) => u.positionCategory === initialCat)
         .map((u) => u.id),
@@ -259,17 +281,21 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
       key: 'batchName',
       width: 240,
     },
-    {
-      title: '考核对象',
-      dataIndex: 'category',
-      key: 'category',
-      width: 110,
-      render: (cat: string) => (
-        <Tag color={cat === 'DEPT_DEPUTY' ? 'geekblue' : 'cyan'}>
-          {cat === 'DEPT_DEPUTY' ? '部门副职' : '部门正职'}
-        </Tag>
-      ),
-    },
+    ...(category
+      ? []
+      : [
+          {
+            title: '考核对象',
+            dataIndex: 'category',
+            key: 'category',
+            width: 110,
+            render: (cat: string) => (
+              <Tag color={cat === 'DEPT_DEPUTY' ? 'geekblue' : 'cyan'}>
+                {cat === 'DEPT_DEPUTY' ? '部门副职' : '部门正职'}
+              </Tag>
+            ),
+          },
+        ]),
     {
       title: '考核月份',
       dataIndex: 'appraisalPeriod',
@@ -441,65 +467,116 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
     },
   ];
 
-  const filteredBatches = batches
-    .filter((b) => statusFilter === 'ALL' || b.status === statusFilter)
-    .filter((b) => categoryFilter === 'ALL' || (b.category || 'DEPT_HEAD') === categoryFilter);
+  const pageTitle =
+    category === 'DEPT_DEPUTY'
+      ? '部门副职月度绩效评审'
+      : category === 'DEPT_HEAD'
+      ? '部门正职月度绩效评审'
+      : '月度绩效评审管理';
+
+  const pageSubtitle = category
+    ? `管理${category === 'DEPT_DEPUTY' ? '副职' : '正职'}评审批次，支持创建、发布、归档、进度查看与汇总排名`
+    : '支持正职/副职独立考核，统一管理月度评审批次全生命周期';
+
+  const categoryScopedBatches = batches.filter((b) => {
+    if (category) {
+      return (b.category || 'DEPT_HEAD') === category;
+    }
+    return categoryFilter === 'ALL' || (b.category || 'DEPT_HEAD') === categoryFilter;
+  });
+
+  const filteredBatches = categoryScopedBatches.filter(
+    (b) => statusFilter === 'ALL' || b.status === statusFilter
+  );
 
   return (
     <div>
-      <Card title="月度绩效考核批次管理（支持正职/副职独立考核）" style={{ marginBottom: 16 }}>
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space size="middle" wrap>
-              <Radio.Group
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                buttonStyle="solid"
-              >
-                <Radio.Button value="ALL">全部考核对象</Radio.Button>
-                <Radio.Button value="DEPT_HEAD">部门正职考核</Radio.Button>
-                <Radio.Button value="DEPT_DEPUTY">部门副职考核</Radio.Button>
-              </Radio.Group>
+      <Card
+        className="app-page-card"
+        title={
+          <div>
+            <div className="app-page-title">{pageTitle}</div>
+            <div className="app-page-subtitle">{pageSubtitle}</div>
+          </div>
+        }
+        extra={
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleOpenCreateModal}
+          >
+            {category === 'DEPT_DEPUTY'
+              ? '创建副职评审批次'
+              : category === 'DEPT_HEAD'
+              ? '创建正职评审批次'
+              : '创建月度考核批次'}
+          </Button>
+        }
+        style={{ marginBottom: 16 }}
+      >
+        <Space size="middle" wrap>
+          {!category && (
+            <Segmented
+              value={categoryFilter}
+              onChange={(value) =>
+                setCategoryFilter(value as 'ALL' | 'DEPT_HEAD' | 'DEPT_DEPUTY')
+              }
+              options={[
+                { label: '全部考核对象', value: 'ALL' },
+                { label: '部门正职', value: 'DEPT_HEAD' },
+                { label: '部门副职', value: 'DEPT_DEPUTY' },
+              ]}
+            />
+          )}
 
-              <Radio.Group
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <Radio.Button value="ALL">全部状态 ({batches.length})</Radio.Button>
-                <Radio.Button value="IN_PROGRESS">
-                  评分中 ({batches.filter((b) => b.status === 'IN_PROGRESS').length})
-                </Radio.Button>
-                <Radio.Button value="COMPLETED">
-                  已归档 ({batches.filter((b) => b.status === 'COMPLETED').length})
-                </Radio.Button>
-                <Radio.Button value="DRAFT">
-                  草稿 ({batches.filter((b) => b.status === 'DRAFT').length})
-                </Radio.Button>
-              </Radio.Group>
-              <Button icon={<ReloadOutlined />} onClick={loadBatches}>
-                刷新
-              </Button>
-            </Space>
-          </Col>
-          <Col>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleOpenCreateModal}
-            >
-              创建月度考核批次
-            </Button>
-          </Col>
-        </Row>
+          <Segmented
+            value={statusFilter}
+            onChange={(value) =>
+              setStatusFilter(value as 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT')
+            }
+            options={[
+              { label: `全部 (${categoryScopedBatches.length})`, value: 'ALL' },
+              {
+                label: `评分中 (${
+                  categoryScopedBatches.filter((b) => b.status === 'IN_PROGRESS').length
+                })`,
+                value: 'IN_PROGRESS',
+              },
+              {
+                label: `已归档 (${
+                  categoryScopedBatches.filter((b) => b.status === 'COMPLETED').length
+                })`,
+                value: 'COMPLETED',
+              },
+              {
+                label: `草稿 (${
+                  categoryScopedBatches.filter((b) => b.status === 'DRAFT').length
+                })`,
+                value: 'DRAFT',
+              },
+            ]}
+          />
+          <Button icon={<ReloadOutlined />} onClick={loadBatches}>
+            刷新
+          </Button>
+        </Space>
       </Card>
 
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={filteredBatches}
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-      />
+      <Card className="app-table-card" styles={{ body: { padding: 0 } }}>
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={filteredBatches}
+          loading={loading}
+          size="middle"
+          scroll={{ x: 1100 }}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 条`,
+          }}
+        />
+      </Card>
 
       {/* Summary Matrix Modal */}
       <BatchSummaryModal
@@ -510,7 +587,15 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
 
       {/* Create Batch Modal */}
       <Modal
-        title="创建月度绩效考核批次"
+        title={
+          relaunchBatchId
+            ? '重新发起月度考核批次'
+            : category === 'DEPT_DEPUTY'
+            ? '创建部门副职月度绩效考核批次'
+            : category === 'DEPT_HEAD'
+            ? '创建部门正职月度绩效考核批次'
+            : '创建月度绩效考核批次'
+        }
         open={createModalVisible}
         width={960}
         onOk={handleCreateSubmit}
@@ -520,33 +605,40 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
         <Form form={form} layout="vertical">
           <Row gutter={16}>
             <Col span={24}>
-              <Form.Item label="考核对象类别（区分部门正职与部门副职）">
-                <Radio.Group
-                  value={targetCategory}
-                  onChange={(e) => {
-                    const newCat = e.target.value;
-                    setTargetCategory(newCat);
-                    setRoleWeights(newCat === 'DEPT_DEPUTY' ? DEFAULT_DEPUTY_ROLE_WEIGHTS : DEFAULT_HEAD_ROLE_WEIGHTS);
-                    const currentPeriod = form.getFieldValue('appraisalPeriod');
-                    const month = (currentPeriod && dayjs(currentPeriod).isValid())
-                      ? dayjs(currentPeriod).format('YYYY年M月')
-                      : dayjs().format('YYYY年M月');
-                    form.setFieldsValue({
-                      batchName: `${month}${newCat === 'DEPT_DEPUTY' ? '内设部门副职' : '内设部门正职'}绩效考核`,
-                      examineeUserIds: examineeCandidates
-                        .filter((u) => u.positionCategory === newCat)
-                        .map((u) => u.id),
-                    });
-                  }}
-                  buttonStyle="solid"
-                >
-                  <Radio.Button value="DEPT_HEAD">
-                    部门正职考核（{examineeCandidates.filter((u) => u.positionCategory === 'DEPT_HEAD').length}人）
-                  </Radio.Button>
-                  <Radio.Button value="DEPT_DEPUTY">
-                    部门副职考核（{examineeCandidates.filter((u) => u.positionCategory === 'DEPT_DEPUTY').length}人）
-                  </Radio.Button>
-                </Radio.Group>
+              <Form.Item label="考核对象类别">
+                {category ? (
+                  <Tag color={category === 'DEPT_DEPUTY' ? 'geekblue' : 'cyan'}>
+                    {category === 'DEPT_DEPUTY' ? '部门副职' : '部门正职'}
+                  </Tag>
+                ) : (
+                  <Radio.Group
+                    value={targetCategory}
+                    onChange={(e) => {
+                      const newCat = e.target.value;
+                      setTargetCategory(newCat);
+                      setRoleWeights(newCat === 'DEPT_DEPUTY' ? DEFAULT_DEPUTY_ROLE_WEIGHTS : DEFAULT_HEAD_ROLE_WEIGHTS);
+                      const currentPeriod = form.getFieldValue('appraisalPeriod');
+                      const month = (currentPeriod && dayjs(currentPeriod).isValid())
+                        ? dayjs(currentPeriod).format('YYYY年M月')
+                        : dayjs().format('YYYY年M月');
+                      form.setFieldsValue({
+                        batchName: `${month}${newCat === 'DEPT_DEPUTY' ? '内设部门副职' : '内设部门正职'}绩效考核`,
+                        examineeUserIds: examineeCandidates
+                          .filter((u) => u.positionCategory === newCat)
+                          .map((u) => u.id),
+                      });
+                    }}
+                    buttonStyle="solid"
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}
+                  >
+                    <Radio.Button value="DEPT_HEAD">
+                      部门正职考核（{examineeCandidates.filter((u) => u.positionCategory === 'DEPT_HEAD').length}人）
+                    </Radio.Button>
+                    <Radio.Button value="DEPT_DEPUTY">
+                      部门副职考核（{examineeCandidates.filter((u) => u.positionCategory === 'DEPT_DEPUTY').length}人）
+                    </Radio.Button>
+                  </Radio.Group>
+                )}
               </Form.Item>
             </Col>
           </Row>
@@ -563,8 +655,8 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
             }
           />
 
-          <Row gutter={16}>
-            <Col span={14}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={14}>
               <Form.Item
                 name="batchName"
                 label="考核批次名称"
@@ -573,7 +665,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
                 <Input placeholder="如：2026年10月内设部门正职绩效考核" />
               </Form.Item>
             </Col>
-            <Col span={10}>
+            <Col xs={24} sm={10}>
               <Form.Item
                 name="appraisalPeriod"
                 label="考核月份"
@@ -627,9 +719,17 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
             </div>
             <Row gutter={[16, 16]}>
               {roleWeights.map((rw) => (
-                <Col key={rw.roleCategory} span={12}>
-                  <Card size="small" bodyStyle={{ padding: '8px 12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Col key={rw.roleCategory} xs={24} sm={12}>
+                  <Card size="small" styles={{ body: { padding: '8px 12px' } }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 8,
+                        flexWrap: 'wrap',
+                      }}
+                    >
                       <Text strong style={{ fontSize: 13 }}>{rw.roleName}</Text>
                       <InputNumber
                         value={rw.weight}
@@ -637,7 +737,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
                         max={100}
                         precision={4}
                         addonAfter="%"
-                        style={{ width: 140 }}
+                        style={{ width: 140, maxWidth: '100%' }}
                         onChange={(v) => handleRoleWeightChange(rw.roleCategory, v)}
                       />
                     </div>

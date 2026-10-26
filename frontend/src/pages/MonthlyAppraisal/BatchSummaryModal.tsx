@@ -131,7 +131,7 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
       key: 'compositeScore',
       width: 130,
       render: (s: number) => (
-        <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
+        <Text strong style={{ color: '#2563eb', fontSize: 16 }}>
           {Number(s).toFixed(4)}
         </Text>
       ),
@@ -204,7 +204,7 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
       key: 'compositeScore',
       width: 130,
       render: (s: number) => (
-        <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
+        <Text strong style={{ color: '#2563eb', fontSize: 16 }}>
           {Number(s).toFixed(4)}
         </Text>
       ),
@@ -400,7 +400,7 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
                 {
                   label: '综合得分',
                   value: (
-                    <Text strong style={{ color: '#1890ff' }}>
+                    <Text strong style={{ color: '#2563eb' }}>
                       {fmtScore(detailRow.compositeScore)}
                     </Text>
                   ),

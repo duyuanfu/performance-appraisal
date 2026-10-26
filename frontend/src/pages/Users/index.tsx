@@ -175,7 +175,7 @@ const UsersPage: React.FC = () => {
   const handleResetPassword = (user: UserVO) => {
     Modal.confirm({
       title: '重置用户密码',
-      icon: <KeyOutlined style={{ color: '#faad14' }} />,
+      icon: <KeyOutlined style={{ color: '#d97706' }} />,
       content: `确认将用户【${user.realName} (${user.username})】的登录密码重置为默认初始密码 (password123) 吗？`,
       okText: '确认重置',
       cancelText: '取消',
@@ -231,14 +231,14 @@ const UsersPage: React.FC = () => {
       dataIndex: 'supervisorName',
       key: 'supervisorName',
       width: 100,
-      render: (name: string) => (name ? <Tag color="blue">{name}</Tag> : <span style={{ color: '#ccc' }}>-</span>),
+      render: (name: string) => (name ? <Tag color="blue">{name}</Tag> : <span style={{ color: '#94a3b8' }}>-</span>),
     },
     {
       title: '直属正职',
       dataIndex: 'deptHeadName',
       key: 'deptHeadName',
       width: 100,
-      render: (name: string) => (name ? <Tag color="cyan">{name}</Tag> : <span style={{ color: '#ccc' }}>-</span>),
+      render: (name: string) => (name ? <Tag color="cyan">{name}</Tag> : <span style={{ color: '#94a3b8' }}>-</span>),
     },
     {
       title: '系统角色',
@@ -304,80 +304,94 @@ const UsersPage: React.FC = () => {
 
   return (
     <div>
-      <Card title="账号与组织架构管理（系统管理员专有权限）" style={{ marginBottom: 16 }}>
-        <Row gutter={[16, 16]} justify="space-between" align="middle">
-          <Col>
-            <Space wrap>
-              <Input
-                placeholder="搜索账号 / 姓名"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                style={{ width: 180 }}
-                allowClear
-                onPressEnter={loadData}
-              />
-              <Select
-                placeholder="按部门筛选"
-                style={{ width: 170 }}
-                value={selectedDept}
-                onChange={setSelectedDept}
-                allowClear
-              >
-                {departments.map((d) => (
-                  <Select.Option key={d} value={d}>
-                    {d}
-                  </Select.Option>
-                ))}
-              </Select>
-              <Select
-                placeholder="按角色筛选"
-                style={{ width: 150 }}
-                value={selectedRole}
-                onChange={setSelectedRole}
-                allowClear
-              >
-                {roles.map((r) => (
-                  <Select.Option key={r.roleCode} value={r.roleCode}>
-                    {r.roleName}
-                  </Select.Option>
-                ))}
-              </Select>
-              <Button type="primary" icon={<SearchOutlined />} onClick={loadData}>
-                查询
-              </Button>
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={() => {
-                  setKeyword('');
-                  setSelectedRole(undefined);
-                  setSelectedDept(undefined);
-                  loadData();
-                }}
-              >
-                重置
-              </Button>
-            </Space>
-          </Col>
-          <Col>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => handleOpenModal()}
-            >
-              新建人员账号
-            </Button>
-          </Col>
-        </Row>
+      <Card
+        className="app-page-card"
+        title={
+          <div>
+            <div className="app-page-title">账号与组织架构管理</div>
+            <div className="app-page-subtitle">
+              系统管理员专有权限，维护人员账号、部门归属、考评关系与系统角色
+            </div>
+          </div>
+        }
+        extra={
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => handleOpenModal()}
+          >
+            新建人员账号
+          </Button>
+        }
+        style={{ marginBottom: 16 }}
+      >
+        <Space wrap>
+          <Input
+            placeholder="搜索账号 / 姓名"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            style={{ width: 180 }}
+            allowClear
+            onPressEnter={loadData}
+          />
+          <Select
+            placeholder="按部门筛选"
+            style={{ width: 170 }}
+            value={selectedDept}
+            onChange={setSelectedDept}
+            allowClear
+          >
+            {departments.map((d) => (
+              <Select.Option key={d} value={d}>
+                {d}
+              </Select.Option>
+            ))}
+          </Select>
+          <Select
+            placeholder="按角色筛选"
+            style={{ width: 150 }}
+            value={selectedRole}
+            onChange={setSelectedRole}
+            allowClear
+          >
+            {roles.map((r) => (
+              <Select.Option key={r.roleCode} value={r.roleCode}>
+                {r.roleName}
+              </Select.Option>
+            ))}
+          </Select>
+          <Button type="primary" icon={<SearchOutlined />} onClick={loadData}>
+            查询
+          </Button>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              setKeyword('');
+              setSelectedRole(undefined);
+              setSelectedDept(undefined);
+              loadData();
+            }}
+          >
+            重置
+          </Button>
+        </Space>
       </Card>
 
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={users}
-        loading={loading}
-        pagination={{ pageSize: 15 }}
-        bordered
-      />
+      <Card className="app-table-card" styles={{ body: { padding: 0 } }}>
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={users}
+          loading={loading}
+          size="middle"
+          scroll={{ x: 1300 }}
+          pagination={{
+            pageSize: 15,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 条`,
+          }}
+        />
+      </Card>
 
       {/* Create / Edit User Modal */}
       <Modal
@@ -389,8 +403,8 @@ const UsersPage: React.FC = () => {
         destroyOnClose
       >
         <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col span={12}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="username"
                 label="账号 / 手机号"
@@ -399,7 +413,7 @@ const UsersPage: React.FC = () => {
                 <Input disabled={!!editingUser} placeholder="如：13908866003" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="realName"
                 label="真实姓名"
@@ -410,8 +424,8 @@ const UsersPage: React.FC = () => {
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={12}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="department"
                 label="所属部门"
@@ -426,15 +440,15 @@ const UsersPage: React.FC = () => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="title" label="职务">
                 <Input placeholder="如：中心主任、部长、副主任、副部长、职工" />
               </Form.Item>
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={8}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} md={8}>
               <Form.Item
                 name="positionCategory"
                 label="职级分类"
@@ -450,7 +464,7 @@ const UsersPage: React.FC = () => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={12} md={8}>
               <Form.Item name="supervisorId" label="分管领导（仅正/副职需配置）">
                 <Select placeholder="选择分管领导" allowClear showSearch optionFilterProp="children">
                   {centerLeaders.map((l) => (
@@ -461,7 +475,7 @@ const UsersPage: React.FC = () => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={12} md={8}>
               <Form.Item name="deptHeadId" label="直属正职（仅部门副职需配置）">
                 <Select placeholder="选择直属正职领导" allowClear showSearch optionFilterProp="children">
                   {deptHeads.map((h) => (
@@ -474,8 +488,8 @@ const UsersPage: React.FC = () => {
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={16}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={16}>
               <Form.Item
                 name="roleIds"
                 label="分配系统角色（支持多选）"
@@ -490,15 +504,15 @@ const UsersPage: React.FC = () => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={12} md={8}>
               <Form.Item name="phone" label="联系电话">
                 <Input placeholder="手机号码" />
               </Form.Item>
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={12}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 name="password"
                 label={editingUser ? '重置密码（留空则不修改）' : '登录密码'}
@@ -506,7 +520,7 @@ const UsersPage: React.FC = () => {
                 <Input.Password placeholder={editingUser ? '留空保持原密码' : '默认: password123'} />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="email" label="电子邮箱">
                 <Input placeholder="邮箱地址" />
               </Form.Item>

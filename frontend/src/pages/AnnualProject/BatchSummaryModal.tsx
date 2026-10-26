@@ -1,25 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Table, Button, Space, Tag, Typography, message, Card } from 'antd';
+import { Modal, Table, Button, Space, Tag, Typography, message } from 'antd';
 import {
   DownloadOutlined,
   ReloadOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  TrophyOutlined,
 } from '@ant-design/icons';
 import request from '../../api/request';
 import { getProjectSummaryApi, AnnualProjectSummaryVO } from '../../api/project';
 import { AppraisalDetailModal } from '../../components/AppraisalDetailModal';
 
 const { Text } = Typography;
-
-const AWARD_TAG_MAP: Record<string, { label: string; color: string }> = {
-  SPECIAL: { label: '特等奖', color: 'gold' },
-  FIRST: { label: '一等奖', color: 'red' },
-  SECOND: { label: '二等奖', color: 'orange' },
-  THIRD: { label: '三等奖', color: 'blue' },
-  NONE: { label: '未获奖', color: 'default' },
-};
 
 interface Props {
   batchId: number | null;
@@ -76,8 +67,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
     }
   };
 
-  const isSpecialInnovation = data?.batchType === 'SPECIAL_INNOVATION';
-  const isTargetProject = data?.batchType === 'TARGET_PROJECT';
+  const showRank = data?.batchType === 'TARGET_PROJECT' || data?.batchType === 'SPECIAL_INNOVATION';
 
   const renderScore = (s?: number | null) =>
     s === undefined || s === null ? '-' : Number(s).toFixed(4);
@@ -146,30 +136,12 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
       width: 130,
       fixed: 'right' as const,
       render: (score: number) => (
-        <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
+        <Text strong style={{ color: '#2563eb', fontSize: 16 }}>
           {Number(score).toFixed(4)}
         </Text>
       ),
     },
-    ...(isSpecialInnovation
-      ? [
-          {
-            title: '评定奖项等次',
-            dataIndex: 'awardTier',
-            key: 'awardTier',
-            width: 130,
-            render: (tier: string) => {
-              const item = AWARD_TAG_MAP[tier] || { label: '未获奖', color: 'default' };
-              return (
-                <Tag icon={tier && tier !== 'NONE' ? <TrophyOutlined /> : undefined} color={item.color}>
-                  {item.label}
-                </Tag>
-              );
-            },
-          },
-        ]
-      : []),
-    ...(isTargetProject
+    ...(showRank
       ? [
           {
             title: '得分系数',
@@ -182,7 +154,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
           },
         ]
       : []),
-    ...(isTargetProject || isSpecialInnovation
+    ...(showRank
       ? [
           {
             title: '排序',
@@ -192,7 +164,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
             fixed: 'right' as const,
             render: (rank: number) => {
               const color =
-                rank === 1 ? '#f5222d' : rank === 2 ? '#fa8c16' : rank === 3 ? '#faad14' : '#595959';
+                rank === 1 ? '#dc2626' : rank === 2 ? '#ea580c' : rank === 3 ? '#d97706' : '#475569';
               return (
                 <Tag color={color} style={{ fontWeight: 'bold' }}>
                   {rank}
@@ -267,7 +239,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
         </div>
         {data?.averageScore !== undefined && (
           <Text strong style={{ fontSize: 13 }}>
-            所有参评项目平均分：<span style={{ color: '#1890ff' }}>{Number(data.averageScore).toFixed(4)} 分</span>
+            所有参评项目平均分：<span style={{ color: '#2563eb' }}>{Number(data.averageScore).toFixed(4)} 分</span>
           </Text>
         )}
       </div>
@@ -307,22 +279,12 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
                 {
                   label: '综合得分',
                   value: (
-                    <Text strong style={{ color: '#1890ff' }}>
+                    <Text strong style={{ color: '#2563eb' }}>
                       {renderScore(detailRow.compositeScore)}
                     </Text>
                   ),
                 },
-                ...(isSpecialInnovation
-                  ? [
-                      {
-                        label: '评定奖项',
-                        value:
-                          detailRow.awardTierName ||
-                          AWARD_TAG_MAP[detailRow.awardTier || '']?.label ||
-                          '-',
-                      },
-                    ]
-                  : [{ label: '得分系数', value: renderScore(detailRow.scoreCoefficient) }]),
+                { label: '得分系数', value: renderScore(detailRow.scoreCoefficient) },
                 { label: '排序', value: `第 ${detailRow.rank} 名` },
               ]
             : []

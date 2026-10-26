@@ -343,7 +343,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .department(item.getDepartment())
                     .supervisorId(item.getSupervisorId())
                     .supervisorName(supervisor != null ? supervisor.getRealName() : "")
-                    .awardTier(item.getAwardTier())
                     .scoreCoefficient(item.getScoreCoefficient())
                     .bonusAmount(item.getBonusAmount())
                     .rankNum(item.getRankNum())
@@ -1243,12 +1242,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             r.setBonusAmount(baseAmount.multiply(coef).setScale(4, RoundingMode.HALF_UP));
         }
 
-        // Award tier assignment for SPECIAL_INNOVATION
-        if ("SPECIAL_INNOVATION".equalsIgnoreCase(batch.getBatchType())) {
-            assignAwardTiers(summaryRows.stream().filter(r -> !"MANAGEMENT".equalsIgnoreCase(r.getCategory())).collect(Collectors.toList()));
-            assignAwardTiers(summaryRows.stream().filter(r -> "MANAGEMENT".equalsIgnoreCase(r.getCategory())).collect(Collectors.toList()));
-        }
-
         return AnnualProjectSummaryVO.builder()
                 .batchId(batchId)
                 .batchName(batch.getBatchName())
@@ -1261,54 +1254,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .roleWeights(roleWeightDTOs)
                 .rows(summaryRows)
                 .build();
-    }
-
-    private void assignAwardTiers(List<AnnualProjectSummaryVO.ProjectSummaryRowVO> list) {
-        if (list.isEmpty()) return;
-        list.sort((a, b) -> b.getCompositeScore().compareTo(a.getCompositeScore()));
-        int n = list.size();
-        int maxSpecial = Math.max(1, (int) Math.floor(n * 0.05));
-        int maxFirst = Math.max(1, (int) Math.floor(n * 0.10));
-        int maxSecond = Math.max(1, (int) Math.floor(n * 0.20));
-        int maxThird = Math.max(1, (int) Math.floor(n * 0.30));
-
-        int specialCount = 0;
-        int firstCount = 0;
-        int secondCount = 0;
-        int thirdCount = 0;
-
-        for (AnnualProjectSummaryVO.ProjectSummaryRowVO r : list) {
-            BigDecimal score = r.getCompositeScore();
-            if (score.compareTo(new BigDecimal("95.0000")) >= 0 && specialCount < maxSpecial) {
-                r.setAwardTier("SPECIAL");
-                r.setAwardTierName("特等奖");
-                specialCount++;
-            } else if (score.compareTo(new BigDecimal("90.0000")) >= 0 && firstCount < maxFirst) {
-                r.setAwardTier("FIRST");
-                r.setAwardTierName("一等奖");
-                firstCount++;
-            } else if (score.compareTo(new BigDecimal("80.0000")) >= 0 && secondCount < maxSecond) {
-                r.setAwardTier("SECOND");
-                r.setAwardTierName("二等奖");
-                secondCount++;
-            } else if (score.compareTo(new BigDecimal("70.0000")) >= 0 && thirdCount < maxThird) {
-                r.setAwardTier("THIRD");
-                r.setAwardTierName("三等奖");
-                thirdCount++;
-            } else {
-                r.setAwardTier("NONE");
-                r.setAwardTierName("未获奖");
-            }
-
-            ProjectItem pi = projectItemMapper.selectById(r.getProjectId());
-            if (pi != null) {
-                pi.setAwardTier(r.getAwardTier());
-                pi.setRankNum(r.getRank());
-                pi.setScoreCoefficient(r.getScoreCoefficient());
-                pi.setBonusAmount(r.getBonusAmount());
-                projectItemMapper.updateById(pi);
-            }
-        }
     }
 
     @Override
@@ -1350,7 +1295,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     dataList.add(row);
                 }
             } else if ("SPECIAL_INNOVATION".equalsIgnoreCase(summary.getBatchType())) {
-                // 专项与创新任务评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 分管领导评分, 其它中心领导评分, 正职评分, 代表评分（评审专家评分）, 综合得分, 评定奖项等次, 排序
+                // 专项与创新任务评审得分表: 序号, 项目名称, 分管领导, 中心主要领导评分, 分管领导评分, 其它中心领导评分, 正职评分, 代表评分（评审专家评分）, 综合得分, 排序
                 head.add(List.of("序号"));
                 head.add(List.of("项目名称"));
                 head.add(List.of("分管领导"));
@@ -1360,7 +1305,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 head.add(List.of("正职评分"));
                 head.add(List.of("代表评分（评审专家评分）"));
                 head.add(List.of("综合得分"));
-                head.add(List.of("评定奖项等次"));
                 head.add(List.of("排序"));
 
                 int idx = 1;
@@ -1375,7 +1319,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
-                    row.add(r.getAwardTierName() != null ? r.getAwardTierName() : "未获奖");
                     row.add(r.getRank());
                     dataList.add(row);
                 }

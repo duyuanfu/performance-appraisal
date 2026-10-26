@@ -17,7 +17,7 @@ const HomeRedirect: React.FC = () => {
     case 'SYS_ADMIN':
       return <Navigate to="/users" replace />;
     case 'ADMIN':
-      return <Navigate to="/monthly-admin" replace />;
+      return <Navigate to="/monthly-head-admin" replace />;
     case 'LEADER':
     case 'DEPT_HEAD':
     case 'DEPT_DEPUTY':
@@ -63,6 +63,8 @@ const App: React.FC = () => {
             <Route index element={<HomeRedirect />} />
             {/* Admin Routes */}
             <Route path="monthly-admin" element={<MonthlyAdminBatchesPage />} />
+            <Route path="monthly-head-admin" element={<MonthlyAdminBatchesPage category="DEPT_HEAD" />} />
+            <Route path="monthly-deputy-admin" element={<MonthlyAdminBatchesPage category="DEPT_DEPUTY" />} />
             <Route path="annual-admin" element={<AnnualProjectAdminBatchesPage batchType="TARGET_PROJECT" />} />
             <Route path="target-project-admin" element={<AnnualProjectAdminBatchesPage batchType="TARGET_PROJECT" />} />
             <Route path="special-innovation-admin" element={<AnnualProjectAdminBatchesPage batchType="SPECIAL_INNOVATION" />} />

@@ -22,7 +22,6 @@ public class ProjectItemVO {
     private String department;
     private Long supervisorId;
     private String supervisorName;
-    private String awardTier;
     private java.math.BigDecimal scoreCoefficient;
     private java.math.BigDecimal bonusAmount;
     private Integer rankNum;

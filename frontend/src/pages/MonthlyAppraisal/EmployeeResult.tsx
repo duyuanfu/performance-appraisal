@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Select, Space, Typography, Tag, Row, Col, Statistic, Empty, Button, Alert } from 'antd';
-import { TrophyOutlined, UserOutlined, ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { BarChartOutlined, UserOutlined, ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import {
   listMonthlyBatchesApi,
   getExamineePersonalResultApi,
@@ -54,13 +54,22 @@ export const EmployeeResultPage: React.FC = () => {
 
   return (
     <div>
-      <Card style={{ marginBottom: 16 }}>
-        <Space size="middle">
-          <Text strong style={{ fontSize: 16 }}>选择考核月份批次：</Text>
+      <Card
+        className="app-page-card"
+        title={
+          <div>
+            <div className="app-page-title">我的月度考核结果</div>
+            <div className="app-page-subtitle">查看本人月度综合得分与部门全员排名</div>
+          </div>
+        }
+        style={{ marginBottom: 16 }}
+      >
+        <Space size="middle" wrap>
+          <Text strong style={{ fontSize: 14 }}>选择考核月份批次</Text>
           <Select
             value={selectedBatchId}
             onChange={setSelectedBatchId}
-            style={{ width: 440 }}
+            style={{ width: 440, maxWidth: '100%' }}
             placeholder="请选择月度考核批次"
           >
             {batches.map((b) => (
@@ -85,26 +94,26 @@ export const EmployeeResultPage: React.FC = () => {
 
       {result ? (
         <>
-          <Row gutter={16} style={{ marginBottom: 16 }}>
-            <Col span={12}>
-              <Card bordered={false} style={{ background: '#f6ffed', border: '1px solid #b7eb8f' }}>
+          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+            <Col xs={24} md={12}>
+              <Card bordered={false} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
                 <Statistic
-                  title={<Text strong style={{ color: '#389e0d', fontSize: 16 }}>我的月度综合得分</Text>}
+                  title={<Text strong style={{ color: '#15803d', fontSize: 16 }}>我的月度综合得分</Text>}
                   value={Number(result.myCompositeScore).toFixed(4)}
                   precision={4}
-                  valueStyle={{ color: '#389e0d', fontSize: 40, fontWeight: 'bold' }}
-                  prefix={<TrophyOutlined />}
+                  valueStyle={{ color: '#15803d', fontSize: 40, fontWeight: 'bold' }}
+                  prefix={<BarChartOutlined />}
                   suffix="分"
                 />
                 <Text type="secondary">（中心领导按考核指标与配置权重综合打分加权计算得出）</Text>
               </Card>
             </Col>
-            <Col span={12}>
-              <Card bordered={false} style={{ background: '#e6f7ff', border: '1px solid #91d5ff' }}>
+            <Col xs={24} md={12}>
+              <Card bordered={false} style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
                 <Statistic
-                  title={<Text strong style={{ color: '#096dd9', fontSize: 16 }}>全员排名</Text>}
+                  title={<Text strong style={{ color: '#1d4ed8', fontSize: 16 }}>全员排名</Text>}
                   value={result.myRank}
-                  valueStyle={{ color: '#096dd9', fontSize: 40, fontWeight: 'bold' }}
+                  valueStyle={{ color: '#1d4ed8', fontSize: 40, fontWeight: 'bold' }}
                   prefix={<UserOutlined />}
                   suffix={`/ 共 ${result.totalExaminees} 人`}
                 />

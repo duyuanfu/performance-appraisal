@@ -59,7 +59,6 @@ export interface ProjectItemVO {
   department?: string;
   supervisorId?: number;
   supervisorName?: string;
-  awardTier?: string;
   scoreCoefficient?: number;
   bonusAmount?: number;
   rankNum?: number;
@@ -141,8 +140,6 @@ export interface AnnualProjectSummaryVO {
     expertScore?: number;
     scoreCoefficient?: number;
     bonusAmount?: number;
-    awardTier?: string;
-    awardTierName?: string;
     metricAvgScores: Record<number, number>;
     expertScores: Record<number, number>;
     evaluatorDetails?: EvaluatorScoreDetail[];

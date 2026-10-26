@@ -58,8 +58,6 @@ public class AnnualProjectSummaryVO {
         private BigDecimal expertScore; // 代表评分（专家评分）
         private BigDecimal scoreCoefficient; // 得分系数
         private BigDecimal bonusAmount; // 核定奖励金额 (万元)
-        private String awardTier; // SPECIAL, FIRST, SECOND, THIRD, NONE
-        private String awardTierName; // 特等奖, 一等奖, 二等奖, 三等奖
         private Map<Long, BigDecimal> metricAvgScores; // metricId -> average score
         private Map<Long, BigDecimal> expertScores; // expertUserId -> total score
         private List<EvaluatorScoreDetailVO> evaluatorDetails; // 各评分人打分明细

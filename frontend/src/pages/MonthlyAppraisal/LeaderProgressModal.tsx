@@ -179,7 +179,7 @@ export const LeaderProgressModal: React.FC<Props> = ({
                 已提交
               </Tag>
               {record.submittedAt && (
-                <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
                   {dayjs(record.submittedAt).format('MM-DD HH:mm')}
                 </div>
               )}
@@ -266,33 +266,33 @@ export const LeaderProgressModal: React.FC<Props> = ({
       destroyOnClose
     >
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
-          <Card size="small" style={{ background: '#fafafa' }}>
+        <Col xs={12} md={6}>
+          <Card size="small" style={{ background: '#f8fafc' }}>
             <Statistic title="考评人员总数" value={list.length} suffix="人" />
           </Card>
         </Col>
-        <Col span={6}>
-          <Card size="small" style={{ background: '#f6ffed' }}>
+        <Col xs={12} md={6}>
+          <Card size="small" style={{ background: '#f0fdf4' }}>
             <Statistic
               title="已完成提交"
               value={submittedCount}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: '#16a34a' }}
               suffix="人"
             />
           </Card>
         </Col>
-        <Col span={6}>
-          <Card size="small" style={{ background: unsubmittedCount > 0 ? '#fff1f0' : '#fafafa' }}>
+        <Col xs={12} md={6}>
+          <Card size="small" style={{ background: unsubmittedCount > 0 ? '#fef2f2' : '#f8fafc' }}>
             <Statistic
               title="未完成待催办"
               value={unsubmittedCount}
-              valueStyle={{ color: unsubmittedCount > 0 ? '#f5222d' : '#8c8c8c' }}
+              valueStyle={{ color: unsubmittedCount > 0 ? '#dc2626' : '#94a3b8' }}
               suffix="人"
             />
           </Card>
         </Col>
-        <Col span={6}>
-          <Card size="small" style={{ background: '#e6f7ff' }}>
+        <Col xs={12} md={6}>
+          <Card size="small" style={{ background: '#eff6ff' }}>
             <div style={{ marginBottom: 4 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>整体提交进度</Text>
             </div>
@@ -301,8 +301,22 @@ export const LeaderProgressModal: React.FC<Props> = ({
         </Col>
       </Row>
 
-      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Radio.Group value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} size="small">
+      <div
+        style={{
+          marginBottom: 12,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Radio.Group
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          size="small"
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}
+        >
           <Radio.Button value="ALL">全部考评人 ({list.length})</Radio.Button>
           <Radio.Button value="CENTER_LEADER">中心领导 ({centerLeaderCount})</Radio.Button>
           <Radio.Button value="PEER">正副职互评 ({peerCount})</Radio.Button>
@@ -324,6 +338,7 @@ export const LeaderProgressModal: React.FC<Props> = ({
         pagination={false}
         bordered
         size="small"
+        scroll={{ x: 900 }}
       />
     </Modal>
   );

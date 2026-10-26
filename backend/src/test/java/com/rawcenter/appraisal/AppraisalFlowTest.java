@@ -555,7 +555,7 @@ public class AppraisalFlowTest {
     }
 
     @Test
-    public void testV2SpecialInnovationAndAwardTierRating() {
+    public void testV2SpecialInnovationRatingAndSummary() {
         // 1. Create special innovation batch
         ProjectBatchSaveDTO batchDto = new ProjectBatchSaveDTO();
         batchDto.setBatchName("2026年度专项与创新任务评审测试");
@@ -635,7 +635,7 @@ public class AppraisalFlowTest {
         s.setItems(Arrays.asList(pi1, pi2, pi3));
         projectService.saveExpertScores(s);
 
-        // 4. Summary and award tier verification
+        // 4. Summary verification
         UserContext.set(UserContext.CurrentUser.builder().userId(1L).username("admin").activeRole("ADMIN").build());
         AnnualProjectSummaryVO summary = projectService.getProjectSummary(batchId);
         Assertions.assertNotNull(summary);
@@ -643,13 +643,9 @@ public class AppraisalFlowTest {
 
         AnnualProjectSummaryVO.ProjectSummaryRowVO topRow = summary.getRows().get(0);
         Assertions.assertEquals(new BigDecimal("96.0000"), topRow.getCompositeScore());
-        Assertions.assertEquals("SPECIAL", topRow.getAwardTier());
-        Assertions.assertEquals("特等奖", topRow.getAwardTierName());
 
         AnnualProjectSummaryVO.ProjectSummaryRowVO secondRow = summary.getRows().get(1);
         Assertions.assertEquals(new BigDecimal("85.0000"), secondRow.getCompositeScore());
-        Assertions.assertEquals("SECOND", secondRow.getAwardTier());
-        Assertions.assertEquals("二等奖", secondRow.getAwardTierName());
 
         // 5. Test Excel Export
         byte[] excelBytes = projectService.exportProjectSummaryExcel(batchId);

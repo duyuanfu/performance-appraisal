@@ -127,7 +127,16 @@ export const MetricConfigTable: React.FC<Props> = ({ metrics, onChange, batchTyp
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+          marginBottom: 12,
+        }}
+      >
         <Space>
           <Button
             icon={<ReloadOutlined />}
@@ -166,6 +175,7 @@ export const MetricConfigTable: React.FC<Props> = ({ metrics, onChange, batchTyp
         pagination={false}
         size="small"
         bordered
+        scroll={{ x: 700 }}
       />
 
       {!isWeightValid && (
