@@ -466,6 +466,7 @@ public class AppraisalFlowTest {
         // 1. Create monthly batch
         MonthlyBatchSaveDTO dto = new MonthlyBatchSaveDTO();
         dto.setBatchName("2026年11月V2分层考评测试批次");
+        dto.setCategory("DEPT_DEPUTY");
         dto.setAppraisalPeriod("2026-11");
         MonthlyBatchSaveDTO.LeaderWeightDTO l1 = new MonthlyBatchSaveDTO.LeaderWeightDTO();
         l1.setLeaderUserId(3L); // 陈剑 (PRIMARY_LEADER)
@@ -490,7 +491,7 @@ public class AppraisalFlowTest {
         monthlyService.publishMonthlyBatch(batchId);
         List<AppraisalMetric> savedMonthlyMetrics = metricService.listMetricsByBatchId(batchId);
 
-        // 2. Score as 陈剑 (PRIMARY_LEADER): 给王昆淼 100 分
+        // 2. Score as 陈剑 (PRIMARY_LEADER): 给王昆淼、田阳阳各 100 分
         UserContext.set(UserContext.CurrentUser.builder().userId(3L).username("13908866003").activeRole("LEADER").build());
         MonthlyScoreSubmitDTO s1 = new MonthlyScoreSubmitDTO();
         s1.setBatchId(batchId);
@@ -502,7 +503,10 @@ public class AppraisalFlowTest {
             mScores1.put(m.getId(), new BigDecimal("100.0000"));
         }
         item1.setMetricScores(mScores1);
-        s1.setItems(Collections.singletonList(item1));
+        MonthlyScoreSubmitDTO.MonthlyScoreItemDTO item1b = new MonthlyScoreSubmitDTO.MonthlyScoreItemDTO();
+        item1b.setExamineeUserId(20L);
+        item1b.setMetricScores(mScores1);
+        s1.setItems(Arrays.asList(item1, item1b));
         monthlyService.saveLeaderScores(s1);
 
         // 3. Score as 施文萃 (CENTER_LEADER, 王昆淼的分管领导, 田阳阳的分管领导)
@@ -534,11 +538,15 @@ public class AppraisalFlowTest {
         Assertions.assertEquals(new BigDecimal("100.0000"), headRow.getSupervisorLeaderScore());
         Assertions.assertEquals(new BigDecimal("60.0000"), headRow.getCompositeScore());
 
-        // 田阳阳 (副职): 分管领导100分(35%) + 其他0 + 本部门正职0 + 副职互评0 = 35.0000
+        // 田阳阳 (副职): 分管领导100分(35%) + 其他中心领导(陈剑100分，邱晔未提交，均分100)*20% + 本部门正职0 + 副职互评0 = 55.0000
         MonthlySummaryVO.TierSummaryRowVO deputyRow = summary.getDeputyRows().stream()
                 .filter(r -> r.getExamineeUserId().equals(20L)).findFirst().orElseThrow();
         Assertions.assertEquals(new BigDecimal("100.0000"), deputyRow.getSupervisorLeaderScore());
-        Assertions.assertEquals(new BigDecimal("35.0000"), deputyRow.getCompositeScore());
+        Assertions.assertEquals(new BigDecimal("100.0000"), deputyRow.getOtherLeaderScore());
+        Assertions.assertEquals(new BigDecimal("55.0000"), deputyRow.getCompositeScore());
+        Assertions.assertTrue(deputyRow.getEvaluatorDetails().stream()
+                .anyMatch(d -> d.getEvaluatorUserId().equals(3L) && "其他中心领导".equals(d.getRoleName())),
+                "副职考核中中心主要领导的评分应并入其他中心领导");
 
         // 5. Test Multi-sheet export
         byte[] excelBytes = monthlyService.exportMonthlyBatchExcel(batchId);

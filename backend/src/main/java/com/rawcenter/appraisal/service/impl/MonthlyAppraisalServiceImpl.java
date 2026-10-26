@@ -948,7 +948,12 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     roleName = "其他中心领导";
                 }
             } else if ("PRIMARY_LEADER".equalsIgnoreCase(roleType)) {
-                roleName = "中心主要领导";
+                if ("DEPT_DEPUTY".equalsIgnoreCase(examineeUser.getPositionCategory())) {
+                    roleType = "OTHER_LEADER";
+                    roleName = "其他中心领导";
+                } else {
+                    roleName = "中心主要领导";
+                }
             } else if ("DEPT_HEAD".equalsIgnoreCase(roleType)) {
                 roleName = "本部门正职";
             } else if ("DEPT_HEAD_PEER".equalsIgnoreCase(roleType)) {
@@ -1206,6 +1211,10 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
 
                 if ("PRIMARY_LEADER".equalsIgnoreCase(evPos)) {
                     primaryScore = rec.getTotalScore();
+                    // 副职考核不单列“中心主要领导”，按需求文档口径并入“其他中心领导”
+                    if ("DEPT_DEPUTY".equalsIgnoreCase(posCat)) {
+                        otherLeaderScores.add(rec.getTotalScore());
+                    }
                 } else if ("CENTER_LEADER".equalsIgnoreCase(evPos)) {
                     if (u.getSupervisorId() != null && u.getSupervisorId().equals(rec.getLeaderUserId())) {
                         supervisorScore = rec.getTotalScore();
