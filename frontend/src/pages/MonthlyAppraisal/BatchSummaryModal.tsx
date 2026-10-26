@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Table, Button, Space, Tag, Typography, message, Card, Tabs } from 'antd';
+import { Modal, Table, Button, Space, Tag, Typography, message, Tabs } from 'antd';
 import {
   DownloadOutlined,
   ReloadOutlined,
@@ -8,6 +8,7 @@ import {
 } from '@ant-design/icons';
 import request from '../../api/request';
 import { getMonthlyBatchSummaryApi, MonthlySummaryVO, TierSummaryRowVO } from '../../api/monthly';
+import { AppraisalDetailModal } from '../../components/AppraisalDetailModal';
 
 const { Text } = Typography;
 
@@ -22,6 +23,10 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
   const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<MonthlySummaryVO | null>(null);
   const [activeTab, setActiveTab] = useState<string>('head');
+  const [detailRow, setDetailRow] = useState<TierSummaryRowVO | null>(null);
+
+  const fmtScore = (value?: number | null) =>
+    value === undefined || value === null ? '-' : Number(value).toFixed(4);
 
   const loadSummary = async () => {
     if (!batchId) return;
@@ -93,31 +98,31 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
       width: 160,
     },
     {
-      title: '主要领导 (25%)',
+      title: '中心主要领导',
       dataIndex: 'primaryLeaderScore',
       key: 'primaryLeaderScore',
       width: 130,
       render: (s: number) => (s === undefined || s === null ? '-' : Number(s).toFixed(4)),
     },
     {
-      title: '分管领导 (35%)',
+      title: '分管领导',
       dataIndex: 'supervisorLeaderScore',
       key: 'supervisorLeaderScore',
       width: 130,
       render: (s: number) => (s === undefined || s === null ? '-' : Number(s).toFixed(4)),
     },
     {
-      title: '其他中心领导(其它4位中心领导 15%)',
+      title: '其他中心领导',
       dataIndex: 'otherLeaderScore',
       key: 'otherLeaderScore',
-      width: 220,
+      width: 150,
       render: (s: number) => (s === undefined || s === null ? '-' : Number(s).toFixed(4)),
     },
     {
-      title: '部门正职互评（其它10位正职 25%）',
+      title: '部门正职互评',
       dataIndex: 'peerScore',
       key: 'peerScore',
-      width: 220,
+      width: 150,
       render: (s: number) => (s === undefined || s === null ? '-' : Number(s).toFixed(4)),
     },
     {
@@ -129,6 +134,17 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
         <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
           {Number(s).toFixed(4)}
         </Text>
+      ),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 100,
+      fixed: 'right' as const,
+      render: (_: any, record: TierSummaryRowVO) => (
+        <Button type="link" size="small" onClick={() => setDetailRow(record)}>
+          查看明细
+        </Button>
       ),
     },
   ];
@@ -155,31 +171,31 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
       width: 160,
     },
     {
-      title: '分管领导 (35%)',
+      title: '分管领导',
       dataIndex: 'supervisorLeaderScore',
       key: 'supervisorLeaderScore',
       width: 130,
       render: (s: number) => (s === undefined || s === null ? '-' : Number(s).toFixed(4)),
     },
     {
-      title: '其他中心领导（其它5位中心领导 20%）',
+      title: '其他中心领导',
       dataIndex: 'otherLeaderScore',
       key: 'otherLeaderScore',
-      width: 230,
+      width: 150,
       render: (s: number) => (s === undefined || s === null ? '-' : Number(s).toFixed(4)),
     },
     {
-      title: '部门正职（本部门 30%）',
+      title: '本部门正职',
       dataIndex: 'deptHeadScore',
       key: 'deptHeadScore',
-      width: 180,
+      width: 150,
       render: (s: number) => (s === undefined || s === null ? '-' : Number(s).toFixed(4)),
     },
     {
-      title: '部门副职互评（其它11位副职 15%）',
+      title: '部门副职互评',
       dataIndex: 'peerScore',
       key: 'peerScore',
-      width: 230,
+      width: 150,
       render: (s: number) => (s === undefined || s === null ? '-' : Number(s).toFixed(4)),
     },
     {
@@ -193,17 +209,21 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
         </Text>
       ),
     },
+    {
+      title: '操作',
+      key: 'action',
+      width: 100,
+      fixed: 'right' as const,
+      render: (_: any, record: TierSummaryRowVO) => (
+        <Button type="link" size="small" onClick={() => setDetailRow(record)}>
+          查看明细
+        </Button>
+      ),
+    },
   ];
 
-  // 3. 全员明细列
-  const detailColumns = [
-    {
-      title: '排名',
-      dataIndex: 'rank',
-      key: 'rank',
-      width: 70,
-      render: (rank: number) => <Tag color="blue" style={{ fontWeight: 'bold' }}>{rank}</Tag>,
-    },
+  // 3. 各指标平均分明细（仅展示单项指标平均分，综合得分与排名以汇总表为准）
+  const metricAverageColumns = [
     {
       title: '姓名',
       dataIndex: 'realName',
@@ -214,34 +234,27 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
       title: '部门',
       dataIndex: 'department',
       key: 'department',
-      width: 150,
+      width: 160,
     },
     {
       title: '职务',
       dataIndex: 'position',
       key: 'position',
-      width: 110,
+      width: 120,
     },
     ...(data?.metrics || []).map((m: any) => ({
       title: `${m.metricName} (${Number(m.weight).toFixed(0)}%)`,
       key: `metric_${m.id}`,
-      width: 130,
+      width: 140,
       render: (_: any, record: any) => {
-        const score = record.metricAvgScores?.[m.id!];
-        return score !== undefined ? <span>{Number(score).toFixed(4)}</span> : <Text type="secondary">-</Text>;
+        const score = record.metricAvgScores?.[m.id];
+        return score === undefined || score === null ? (
+          <Text type="secondary">-</Text>
+        ) : (
+          <span>{Number(score).toFixed(4)}</span>
+        );
       },
     })),
-    {
-      title: '综合得分',
-      dataIndex: 'compositeScore',
-      key: 'compositeScore',
-      width: 130,
-      render: (score: number) => (
-        <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
-          {Number(score).toFixed(4)}
-        </Text>
-      ),
-    },
   ];
 
   const tabItems = [
@@ -257,6 +270,7 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
           pagination={false}
           size="middle"
           bordered
+          scroll={{ x: 1100 }}
         />
       ),
     },
@@ -272,22 +286,31 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
           pagination={false}
           size="middle"
           bordered
+          scroll={{ x: 1100 }}
         />
       ),
     },
     {
-      key: 'all',
-      label: `全员指标综合打分明细 (${data?.rows?.length || 0}人)`,
+      key: 'metrics',
+      label: `各指标平均分明细 (${data?.rows?.length || 0}人)`,
       children: (
-        <Table
-          rowKey="examineeUserId"
-          columns={detailColumns}
-          dataSource={data?.rows || []}
-          loading={loading}
-          pagination={false}
-          size="middle"
-          bordered
-        />
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              展示每位被考核人各考核指标的平均得分（按所有已提交评分人计算），用于分析得分构成；综合得分与排名请以汇总表为准。
+            </Text>
+          </div>
+          <Table
+            rowKey="examineeUserId"
+            columns={metricAverageColumns}
+            dataSource={data?.rows || []}
+            loading={loading}
+            pagination={false}
+            size="middle"
+            bordered
+            scroll={{ x: 900 }}
+          />
+        </div>
       ),
     },
   ];
@@ -338,7 +361,55 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
         </Space>
       </div>
 
+      <div style={{ marginBottom: 12 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {data?.category === 'DEPT_DEPUTY'
+            ? '权重：分管领导 35% · 其他中心领导 20% · 本部门正职 30% · 部门副职互评 15%'
+            : '权重：中心主要领导 25% · 分管领导 35% · 其他中心领导 15% · 部门正职互评 25%'}
+        </Text>
+      </div>
+
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+
+      <AppraisalDetailModal
+        open={!!detailRow}
+        onClose={() => setDetailRow(null)}
+        title={`评分明细 - ${detailRow?.realName || ''}`}
+        subtitle={
+          <Text type="secondary">
+            {detailRow?.department || '-'} · {detailRow?.position || '-'}
+          </Text>
+        }
+        metrics={data?.metrics || []}
+        evaluators={detailRow?.evaluatorDetails || []}
+        summaryItems={
+          detailRow
+            ? [
+                ...(detailRow.positionCategory === 'DEPT_DEPUTY'
+                  ? []
+                  : [{ label: '中心主要领导', value: fmtScore(detailRow.primaryLeaderScore) }]),
+                { label: '分管领导', value: fmtScore(detailRow.supervisorLeaderScore) },
+                { label: '其他中心领导', value: fmtScore(detailRow.otherLeaderScore) },
+                ...(detailRow.positionCategory === 'DEPT_DEPUTY'
+                  ? [{ label: '本部门正职', value: fmtScore(detailRow.deptHeadScore) }]
+                  : []),
+                {
+                  label: detailRow.positionCategory === 'DEPT_DEPUTY' ? '部门副职互评' : '部门正职互评',
+                  value: fmtScore(detailRow.peerScore),
+                },
+                {
+                  label: '综合得分',
+                  value: (
+                    <Text strong style={{ color: '#1890ff' }}>
+                      {fmtScore(detailRow.compositeScore)}
+                    </Text>
+                  ),
+                },
+                { label: '排名', value: `第 ${detailRow.rank} 名` },
+              ]
+            : []
+        }
+      />
     </Modal>
   );
 };

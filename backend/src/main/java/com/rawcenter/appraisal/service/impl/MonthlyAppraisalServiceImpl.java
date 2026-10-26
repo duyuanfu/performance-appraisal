@@ -12,6 +12,7 @@ import com.rawcenter.appraisal.mapper.*;
 import com.rawcenter.appraisal.service.MetricService;
 import com.rawcenter.appraisal.service.MonthlyAppraisalService;
 import com.rawcenter.appraisal.vo.EvaluatorProgressVO;
+import com.rawcenter.appraisal.vo.EvaluatorScoreDetailVO;
 import com.rawcenter.appraisal.vo.ExamineePersonalResultVO;
 import com.rawcenter.appraisal.vo.MonthlyBatchVO;
 import com.rawcenter.appraisal.vo.MonthlyLeaderScoringVO;
@@ -824,11 +825,19 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
 
         // B. 针对正职考核 (DEPT_HEAD)：加入部门正职互评考评人
         if ("DEPT_HEAD".equalsIgnoreCase(category)) {
-            // 所有参评的部门正职进行互评（打除自己以外的其他正职）
-            for (MonthlyExaminee ex : examinees) {
-                SysUser headUser = examineeUserMap.get(ex.getExamineeUserId());
-                if (headUser == null) continue;
-                int targetCount = Math.max(0, examinees.size() - 1);
+            // 所有在职部门正职均参与互评；即使某位正职不在本批次被考核人清单中，
+            // 也需要对其他被考核正职打分，因此这里按岗位类别取全部正职。
+            List<SysUser> allHeads = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                    .eq(SysUser::getPositionCategory, "DEPT_HEAD")
+                    .eq(SysUser::getStatus, 1)
+                    .orderByAsc(SysUser::getId));
+            for (SysUser headUser : allHeads) {
+                boolean isExaminee = examineeUserIds.contains(headUser.getId());
+                int targetCount = examinees.size() - (isExaminee ? 1 : 0);
+                if (targetCount <= 0) {
+                    // 仅自己一人参评时没有互评对象，不纳入考评人清单
+                    continue;
+                }
                 String targetDesc = "正职互评 " + targetCount + " 人";
                 result.add(buildEvaluatorProgress(headUser, "DEPT_HEAD_PEER", "部门正职互评", targetCount, targetDesc, recordsByEvaluator.get(headUser.getId())));
             }
@@ -851,11 +860,18 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 result.add(buildEvaluatorProgress(deptHeadUser, "DEPT_HEAD", "本部门正职", targetCount, targetDesc, recordsByEvaluator.get(deptHeadUser.getId())));
             }
 
-            // C2. 部门副职互评考评人（打除自己以外的其他副职）
-            for (MonthlyExaminee ex : examinees) {
-                SysUser deputyUser = examineeUserMap.get(ex.getExamineeUserId());
-                if (deputyUser == null) continue;
-                int targetCount = Math.max(0, examinees.size() - 1);
+            // C2. 部门副职互评考评人：所有在职副职均参与互评，
+            // 即使不在本批次被考核人清单中，也需要对其他被考核副职打分。
+            List<SysUser> allDeputies = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                    .eq(SysUser::getPositionCategory, "DEPT_DEPUTY")
+                    .eq(SysUser::getStatus, 1)
+                    .orderByAsc(SysUser::getId));
+            for (SysUser deputyUser : allDeputies) {
+                boolean isExaminee = examineeUserIds.contains(deputyUser.getId());
+                int targetCount = examinees.size() - (isExaminee ? 1 : 0);
+                if (targetCount <= 0) {
+                    continue;
+                }
                 String targetDesc = "副职互评 " + targetCount + " 人";
                 result.add(buildEvaluatorProgress(deputyUser, "DEPT_DEPUTY_PEER", "部门副职互评", targetCount, targetDesc, recordsByEvaluator.get(deputyUser.getId())));
             }
@@ -898,6 +914,100 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .targetDesc(targetDesc)
                 .submittedAt(submittedAt)
                 .build();
+    }
+
+    /**
+     * 构建某位被考核人的评分人明细（含未提交人员），用于汇总排名“查看明细”。
+     */
+    private List<EvaluatorScoreDetailVO> buildMonthlyEvaluatorDetails(
+            SysUser examineeUser,
+            List<EvaluatorProgressVO> progressList,
+            List<MonthlyScoreRecord> allRecords,
+            Map<String, BigDecimal> recordDetailMap,
+            List<AppraisalMetric> metrics) {
+        Map<Long, MonthlyScoreRecord> recordMap = allRecords.stream()
+                .filter(r -> r.getExamineeUserId().equals(examineeUser.getId()))
+                .collect(Collectors.toMap(MonthlyScoreRecord::getLeaderUserId, r -> r, (a, b) -> a));
+
+        List<EvaluatorScoreDetailVO> details = new ArrayList<>();
+        for (EvaluatorProgressVO p : progressList) {
+            // 被考核人不作为自己的评分人展示
+            if (p.getUserId().equals(examineeUser.getId())) {
+                continue;
+            }
+            MonthlyScoreRecord rec = recordMap.get(p.getUserId());
+            String roleType = p.getEvaluatorRoleType();
+            String roleName = p.getEvaluatorRoleName();
+
+            if ("CENTER_LEADER".equalsIgnoreCase(roleType)) {
+                if (examineeUser.getSupervisorId() != null && examineeUser.getSupervisorId().equals(p.getUserId())) {
+                    roleType = "SUPERVISOR_LEADER";
+                    roleName = "分管领导";
+                } else {
+                    roleType = "OTHER_LEADER";
+                    roleName = "其他中心领导";
+                }
+            } else if ("PRIMARY_LEADER".equalsIgnoreCase(roleType)) {
+                roleName = "中心主要领导";
+            } else if ("DEPT_HEAD".equalsIgnoreCase(roleType)) {
+                roleName = "本部门正职";
+            } else if ("DEPT_HEAD_PEER".equalsIgnoreCase(roleType)) {
+                roleName = "部门正职互评";
+            } else if ("DEPT_DEPUTY_PEER".equalsIgnoreCase(roleType)) {
+                roleName = "部门副职互评";
+            }
+
+            Map<Long, BigDecimal> metricScores = new HashMap<>();
+            if (rec != null) {
+                for (AppraisalMetric m : metrics) {
+                    BigDecimal score = recordDetailMap.get(rec.getId() + "_" + m.getId());
+                    if (score != null) {
+                        metricScores.put(m.getId(), score);
+                    }
+                }
+            }
+
+            details.add(EvaluatorScoreDetailVO.builder()
+                    .evaluatorUserId(p.getUserId())
+                    .realName(p.getRealName())
+                    .roleType(roleType)
+                    .roleName(roleName)
+                    .status(rec != null ? rec.getStatus() : p.getStatus())
+                    .metricScores(metricScores)
+                    .totalScore(rec != null ? rec.getTotalScore() : null)
+                    .submittedAt(rec != null ? rec.getSubmittedAt() : null)
+                    .build());
+        }
+
+        details.sort(Comparator
+                .comparingInt((EvaluatorScoreDetailVO d) -> roleOrder(d.getRoleType()))
+                .thenComparing(EvaluatorScoreDetailVO::getRealName, Comparator.nullsLast(String::compareTo)));
+        return details;
+    }
+
+    private int roleOrder(String roleType) {
+        if (roleType == null) {
+            return 99;
+        }
+        switch (roleType) {
+            case "PRIMARY_LEADER":
+                return 0;
+            case "SUPERVISOR_LEADER":
+                return 1;
+            case "OTHER_LEADER":
+            case "CENTER_LEADER":
+                return 2;
+            case "DEPT_HEAD":
+                return 3;
+            case "DEPT_HEAD_PEER":
+                return 4;
+            case "DEPT_DEPUTY_PEER":
+                return 5;
+            case "EXPERT":
+                return 6;
+            default:
+                return 99;
+        }
     }
 
     @Override
@@ -953,6 +1063,9 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 recordDetailMap.put(d.getRecordId() + "_" + d.getMetricId(), d.getScore());
             }
         }
+
+        // 全量考评人清单（含未提交人员），用于“查看明细”展示
+        List<EvaluatorProgressVO> progressList = getLeaderProgress(batchId);
 
         Set<Long> submittedLeaders = allRecords.stream()
                 .filter(r -> "SUBMITTED".equals(r.getStatus()))
@@ -1014,17 +1127,22 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 compositeScore = compositeScore.add(weighted);
             }
 
-            // Compute composite weighted score for each metric across leaders
+            // 各指标平均分：按该被考核人所有已提交评分记录计算（用于指标构成分析）
             for (AppraisalMetric m : metrics) {
-                BigDecimal metricWeightedSum = BigDecimal.ZERO;
-                for (MonthlyEvaluator ev : evaluators) {
-                    BigDecimal lms = leaderMetricScoreMap.get(ev.getLeaderUserId() + "_" + m.getId());
-                    if (lms != null) {
-                        metricWeightedSum = metricWeightedSum.add(lms.multiply(ev.getWeight())
-                                .divide(new BigDecimal("100.0000"), 4, RoundingMode.HALF_UP));
+                BigDecimal metricSum = BigDecimal.ZERO;
+                int metricCount = 0;
+                for (MonthlyScoreRecord rec : allRecords) {
+                    if (!rec.getExamineeUserId().equals(ex.getExamineeUserId())) continue;
+                    if (!"SUBMITTED".equals(rec.getStatus())) continue;
+                    BigDecimal score = recordDetailMap.get(rec.getId() + "_" + m.getId());
+                    if (score != null) {
+                        metricSum = metricSum.add(score);
+                        metricCount++;
                     }
                 }
-                metricAvgScores.put(m.getId(), metricWeightedSum.setScale(4, RoundingMode.HALF_UP));
+                metricAvgScores.put(m.getId(), metricCount > 0
+                        ? metricSum.divide(BigDecimal.valueOf(metricCount), 4, RoundingMode.HALF_UP)
+                        : BigDecimal.ZERO);
             }
 
             compositeScore = compositeScore.setScale(4, RoundingMode.HALF_UP);
@@ -1136,6 +1254,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                         .peerScore(peerAvg)
                         .compositeScore(headComposite)
                         .rank(1)
+                        .evaluatorDetails(buildMonthlyEvaluatorDetails(u, progressList, allRecords, recordDetailMap, metrics))
                         .build());
             } else if ("DEPT_DEPUTY".equalsIgnoreCase(posCat)) {
                 // 副职: 中心分管领导 + 其他中心领导 + 本部门正职 + 部门副职互评
@@ -1158,6 +1277,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                         .peerScore(peerAvg)
                         .compositeScore(deputyComposite)
                         .rank(1)
+                        .evaluatorDetails(buildMonthlyEvaluatorDetails(u, progressList, allRecords, recordDetailMap, metrics))
                         .build());
             }
         }
@@ -1259,10 +1379,10 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 headHeaders.add(List.of("序号"));
                 headHeaders.add(List.of("姓名"));
                 headHeaders.add(List.of("部门"));
-                headHeaders.add(List.of("主要领导"));
+                headHeaders.add(List.of("中心主要领导"));
                 headHeaders.add(List.of("分管领导"));
-                headHeaders.add(List.of("其他中心领导(其它4位中心领导）"));
-                headHeaders.add(List.of("部门正职互评（其它10位正职）"));
+                headHeaders.add(List.of("其他中心领导"));
+                headHeaders.add(List.of("部门正职互评"));
                 headHeaders.add(List.of("综合得分"));
                 headHeaders.add(List.of("排名"));
 
@@ -1295,9 +1415,9 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 deputyHeaders.add(List.of("姓名"));
                 deputyHeaders.add(List.of("部门"));
                 deputyHeaders.add(List.of("分管领导"));
-                deputyHeaders.add(List.of("其他中心领导（其它5位中心领导）"));
-                deputyHeaders.add(List.of("部门正职（本部门）"));
-                deputyHeaders.add(List.of("部门副职互评（其它11位副职）"));
+                deputyHeaders.add(List.of("其他中心领导"));
+                deputyHeaders.add(List.of("本部门正职"));
+                deputyHeaders.add(List.of("部门副职互评"));
                 deputyHeaders.add(List.of("综合得分"));
                 deputyHeaders.add(List.of("排名"));
 

@@ -62,6 +62,7 @@ public class AnnualProjectSummaryVO {
         private String awardTierName; // 特等奖, 一等奖, 二等奖, 三等奖
         private Map<Long, BigDecimal> metricAvgScores; // metricId -> average score
         private Map<Long, BigDecimal> expertScores; // expertUserId -> total score
+        private List<EvaluatorScoreDetailVO> evaluatorDetails; // 各评分人打分明细
         private BigDecimal compositeScore;
         private Integer rank;
     }

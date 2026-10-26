@@ -73,6 +73,17 @@ export interface MonthlyLeaderScoringVO {
   }[];
 }
 
+export interface EvaluatorScoreDetail {
+  evaluatorUserId: number;
+  realName: string;
+  roleType?: string;
+  roleName?: string;
+  status?: string;
+  metricScores?: Record<number, number>;
+  totalScore?: number | null;
+  submittedAt?: string;
+}
+
 export interface TierSummaryRowVO {
   examineeUserId: number;
   realName: string;
@@ -86,6 +97,7 @@ export interface TierSummaryRowVO {
   peerScore: number;
   compositeScore: number;
   rank: number;
+  evaluatorDetails?: EvaluatorScoreDetail[];
 }
 
 export interface MonthlySummaryVO {

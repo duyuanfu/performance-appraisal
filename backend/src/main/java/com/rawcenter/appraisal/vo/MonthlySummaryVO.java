@@ -43,6 +43,7 @@ public class MonthlySummaryVO {
         private BigDecimal peerScore; // 同级互评均分
         private BigDecimal compositeScore; // 综合得分
         private Integer rank; // 排名
+        private List<EvaluatorScoreDetailVO> evaluatorDetails; // 各评分人打分明细
     }
 
     @Data

@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import request from '../../api/request';
 import { getProjectSummaryApi, AnnualProjectSummaryVO } from '../../api/project';
+import { AppraisalDetailModal } from '../../components/AppraisalDetailModal';
 
 const { Text } = Typography;
 
@@ -30,6 +31,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<AnnualProjectSummaryVO | null>(null);
+  const [detailRow, setDetailRow] = useState<AnnualProjectSummaryVO['rows'][number] | null>(null);
 
   const loadSummary = async () => {
     if (!batchId) return;
@@ -200,6 +202,17 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
           },
         ]
       : []),
+    {
+      title: '操作',
+      key: 'action',
+      width: 100,
+      fixed: 'right' as const,
+      render: (_: any, record: AnnualProjectSummaryVO['rows'][number]) => (
+        <Button type="link" size="small" onClick={() => setDetailRow(record)}>
+          查看明细
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -271,6 +284,52 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
         size="middle"
         bordered
         scroll={{ x: 1300 }}
+      />
+
+      <AppraisalDetailModal
+        open={!!detailRow}
+        onClose={() => setDetailRow(null)}
+        title={`评分明细 - ${detailRow?.projectName || ''}`}
+        subtitle={
+          <Text type="secondary">
+            项目编号：{detailRow?.projectCode || '-'} · 负责人：{detailRow?.ownerName || '-'} · 分管领导：
+            {detailRow?.supervisorName || '-'}
+          </Text>
+        }
+        metrics={data?.metrics || []}
+        evaluators={detailRow?.evaluatorDetails || []}
+        summaryItems={
+          detailRow
+            ? [
+                { label: '分管领导', value: detailRow.supervisorName || '-' },
+                { label: '中心主要领导评分', value: renderScore(detailRow.primaryLeaderScore) },
+                { label: '分管领导评分', value: renderScore(detailRow.supervisorLeaderScore) },
+                { label: '其它中心领导评分', value: renderScore(detailRow.otherLeaderScore) },
+                { label: '正职评分', value: renderScore(detailRow.headScore) },
+                { label: '代表评分', value: renderScore(detailRow.expertScore) },
+                {
+                  label: '综合得分',
+                  value: (
+                    <Text strong style={{ color: '#1890ff' }}>
+                      {renderScore(detailRow.compositeScore)}
+                    </Text>
+                  ),
+                },
+                ...(isSpecialInnovation
+                  ? [
+                      {
+                        label: '评定奖项',
+                        value:
+                          detailRow.awardTierName ||
+                          AWARD_TAG_MAP[detailRow.awardTier || '']?.label ||
+                          '-',
+                      },
+                    ]
+                  : [{ label: '得分系数', value: renderScore(detailRow.scoreCoefficient) }]),
+                { label: '排序', value: `第 ${detailRow.rank} 名` },
+              ]
+            : []
+        }
       />
     </Modal>
   );

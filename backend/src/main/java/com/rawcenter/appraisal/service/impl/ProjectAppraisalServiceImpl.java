@@ -13,6 +13,7 @@ import com.rawcenter.appraisal.mapper.*;
 import com.rawcenter.appraisal.service.MetricService;
 import com.rawcenter.appraisal.service.ProjectAppraisalService;
 import com.rawcenter.appraisal.vo.AnnualProjectSummaryVO;
+import com.rawcenter.appraisal.vo.EvaluatorScoreDetailVO;
 import com.rawcenter.appraisal.vo.ExpertEvaluationVO;
 import com.rawcenter.appraisal.vo.ProjectItemVO;
 import lombok.RequiredArgsConstructor;
@@ -620,6 +621,127 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         return "考评人员";
     }
 
+    /**
+     * 构建某个项目的评分人明细（含未提交人员），用于汇总排名“查看明细”。
+     */
+    private List<EvaluatorScoreDetailVO> buildProjectEvaluatorDetails(
+            ProjectItem project,
+            List<ProjectExpert> experts,
+            Map<Long, SysUser> expertUserMap,
+            Map<Long, SysUser> evaluatorUserMap,
+            List<ProjectScoreRecord> allRecords,
+            Map<String, BigDecimal> recordDetailMap,
+            List<AppraisalMetric> metrics) {
+        List<EvaluatorScoreDetailVO> details = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        List<ProjectScoreRecord> projectRecords = allRecords.stream()
+                .filter(r -> r.getProjectId().equals(project.getId()))
+                .collect(Collectors.toList());
+
+        for (ProjectExpert exp : experts) {
+            Long uid = exp.getExpertUserId();
+            SysUser u = expertUserMap.get(uid);
+            if (u == null) {
+                continue;
+            }
+            details.add(buildProjectEvaluatorDetail(project, uid, u, projectRecords, recordDetailMap, metrics));
+            seen.add(uid);
+        }
+
+        // 兼容历史批次：若存在评分记录但不在 project_expert 清单中，也补充展示
+        for (ProjectScoreRecord rec : projectRecords) {
+            if (seen.contains(rec.getExpertUserId())) {
+                continue;
+            }
+            SysUser u = evaluatorUserMap.get(rec.getExpertUserId());
+            if (u == null) {
+                continue;
+            }
+            details.add(buildProjectEvaluatorDetail(project, rec.getExpertUserId(), u, projectRecords, recordDetailMap, metrics));
+            seen.add(rec.getExpertUserId());
+        }
+
+        details.sort(Comparator
+                .comparingInt((EvaluatorScoreDetailVO d) -> roleOrder(d.getRoleType()))
+                .thenComparing(EvaluatorScoreDetailVO::getRealName, Comparator.nullsLast(String::compareTo)));
+        return details;
+    }
+
+    private EvaluatorScoreDetailVO buildProjectEvaluatorDetail(
+            ProjectItem project,
+            Long evaluatorUserId,
+            SysUser evaluatorUser,
+            List<ProjectScoreRecord> projectRecords,
+            Map<String, BigDecimal> recordDetailMap,
+            List<AppraisalMetric> metrics) {
+        ProjectScoreRecord rec = projectRecords.stream()
+                .filter(r -> r.getExpertUserId().equals(evaluatorUserId))
+                .findFirst()
+                .orElse(null);
+
+        String roleType = evaluatorUser.getPositionCategory();
+        String roleName;
+        if ("PRIMARY_LEADER".equalsIgnoreCase(roleType)) {
+            roleName = "中心主要领导";
+        } else if ("CENTER_LEADER".equalsIgnoreCase(roleType)) {
+            if (project.getSupervisorId() != null && project.getSupervisorId().equals(evaluatorUserId)) {
+                roleType = "SUPERVISOR_LEADER";
+                roleName = "分管领导";
+            } else {
+                roleType = "OTHER_LEADER";
+                roleName = "其他中心领导";
+            }
+        } else if ("DEPT_HEAD".equalsIgnoreCase(roleType)) {
+            roleName = "部门正职";
+        } else if ("EXPERT".equalsIgnoreCase(roleType)) {
+            roleName = "评审专家";
+        } else {
+            roleName = "考评人员";
+        }
+
+        Map<Long, BigDecimal> metricScores = new HashMap<>();
+        if (rec != null) {
+            for (AppraisalMetric m : metrics) {
+                BigDecimal score = recordDetailMap.get(rec.getId() + "_" + m.getId());
+                if (score != null) {
+                    metricScores.put(m.getId(), score);
+                }
+            }
+        }
+
+        return EvaluatorScoreDetailVO.builder()
+                .evaluatorUserId(evaluatorUserId)
+                .realName(evaluatorUser.getRealName())
+                .roleType(roleType)
+                .roleName(roleName)
+                .status(rec != null ? rec.getStatus() : "NOT_STARTED")
+                .metricScores(metricScores)
+                .totalScore(rec != null ? rec.getTotalScore() : null)
+                .submittedAt(rec != null ? rec.getSubmittedAt() : null)
+                .build();
+    }
+
+    private int roleOrder(String roleType) {
+        if (roleType == null) {
+            return 99;
+        }
+        switch (roleType) {
+            case "PRIMARY_LEADER":
+                return 0;
+            case "SUPERVISOR_LEADER":
+                return 1;
+            case "OTHER_LEADER":
+            case "CENTER_LEADER":
+                return 2;
+            case "DEPT_HEAD":
+                return 3;
+            case "EXPERT":
+                return 6;
+            default:
+                return 99;
+        }
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void saveExpertScores(ExpertScoreSubmitDTO dto) {
@@ -887,6 +1009,17 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         Map<String, ProjectScoreRecord> recordKeyMap = allRecords.stream()
                 .collect(Collectors.toMap(r -> r.getExpertUserId() + "_" + r.getProjectId(), r -> r, (a, b) -> a));
 
+        // 一次性加载全部评分明细，避免逐项目/逐专家查询
+        Map<String, BigDecimal> recordDetailMap = new HashMap<>();
+        List<Long> recordIds = allRecords.stream().map(ProjectScoreRecord::getId).collect(Collectors.toList());
+        if (!recordIds.isEmpty()) {
+            List<ProjectScoreDetail> details = scoreDetailMapper.selectList(new LambdaQueryWrapper<ProjectScoreDetail>()
+                    .in(ProjectScoreDetail::getRecordId, recordIds));
+            for (ProjectScoreDetail d : details) {
+                recordDetailMap.put(d.getRecordId() + "_" + d.getMetricId(), d.getScore());
+            }
+        }
+
         Set<Long> submittedExperts = allRecords.stream()
                 .filter(r -> "SUBMITTED".equals(r.getStatus()))
                 .map(ProjectScoreRecord::getExpertUserId)
@@ -1052,11 +1185,9 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 for (ProjectExpert exp : experts) {
                     ProjectScoreRecord rec = recordKeyMap.get(exp.getExpertUserId() + "_" + p.getId());
                     if (rec != null && "SUBMITTED".equals(rec.getStatus())) {
-                        ProjectScoreDetail detail = scoreDetailMapper.selectOne(new LambdaQueryWrapper<ProjectScoreDetail>()
-                                .eq(ProjectScoreDetail::getRecordId, rec.getId())
-                                .eq(ProjectScoreDetail::getMetricId, m.getId()));
-                        if (detail != null) {
-                            metricSum = metricSum.add(detail.getScore());
+                        BigDecimal detailScore = recordDetailMap.get(rec.getId() + "_" + m.getId());
+                        if (detailScore != null) {
+                            metricSum = metricSum.add(detailScore);
                             count++;
                         }
                     }
@@ -1084,6 +1215,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .expertScore(expertAvg)
                     .metricAvgScores(metricAvgScores)
                     .expertScores(expertScoreMap)
+                    .evaluatorDetails(buildProjectEvaluatorDetails(p, experts, expertUserMap, evaluatorUserMap, allRecords, recordDetailMap, metrics))
                     .compositeScore(compositeScore)
                     .rank(1)
                     .build());

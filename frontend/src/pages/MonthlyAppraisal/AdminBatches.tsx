@@ -72,9 +72,11 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
   const [batches, setBatches] = useState<MonthlyBatchVO[]>([]);
   const [loading, setLoading] = useState(false);
   const [summaryModalBatchId, setSummaryModalBatchId] = useState<number | null>(null);
-  const [progressModalBatch, setProgressModalBatch] = useState<{ id: number; name: string } | null>(
-    null
-  );
+  const [progressModalBatch, setProgressModalBatch] = useState<{
+    id: number;
+    name: string;
+    examineeCount?: number;
+  } | null>(null);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT'>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'DEPT_HEAD' | 'DEPT_DEPUTY'>('ALL');
 
@@ -306,7 +308,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
                 type="link"
                 size="small"
                 style={{ padding: 0, height: 'auto', fontSize: 12 }}
-                onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName })}
+                onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName, examineeCount: record.examineeCount })}
               >
                 <Tag
                   color={isComplete ? 'success' : 'processing'}
@@ -362,7 +364,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
             type="link"
             size="small"
             icon={<BellOutlined />}
-            onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName })}
+            onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName, examineeCount: record.examineeCount })}
           >
             催促打分
           </Button>
@@ -672,6 +674,7 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
       <LeaderProgressModal
         batchId={progressModalBatch?.id || null}
         batchName={progressModalBatch?.name}
+        examineeCount={progressModalBatch?.examineeCount}
         open={!!progressModalBatch}
         onClose={() => setProgressModalBatch(null)}
       />

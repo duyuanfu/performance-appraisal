@@ -1,5 +1,6 @@
 import request from './request';
 import { MetricItem } from './metric';
+import type { EvaluatorScoreDetail } from './monthly';
 
 export interface ExpertWeightItem {
   expertUserId: number;
@@ -144,6 +145,7 @@ export interface AnnualProjectSummaryVO {
     awardTierName?: string;
     metricAvgScores: Record<number, number>;
     expertScores: Record<number, number>;
+    evaluatorDetails?: EvaluatorScoreDetail[];
     compositeScore: number;
     rank: number;
   }[];

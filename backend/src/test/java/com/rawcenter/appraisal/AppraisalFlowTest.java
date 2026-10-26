@@ -123,7 +123,7 @@ public class AppraisalFlowTest {
 
         // Test Leader Progress & Urge
         List<EvaluatorProgressVO> leaderProgress = monthlyService.getLeaderProgress(batchId);
-        Assertions.assertEquals(5, leaderProgress.size(), "考评人应拓展包含3位中心领导与2位部门正职互评人员");
+        Assertions.assertEquals(6, leaderProgress.size(), "考评人应包含3位中心领导与全部3位部门正职互评人员");
         monthlyService.urgeLeader(batchId, 3L);
 
         // 3. Leader 1 (陈剑, id=3) Scores
@@ -226,6 +226,9 @@ public class AppraisalFlowTest {
                 .filter(r -> r.getExamineeUserId().equals(9L)).findFirst().orElseThrow();
         Assertions.assertEquals(new BigDecimal("95.0000"), row9.getCompositeScore());
         Assertions.assertEquals(1, row9.getRank());
+        MonthlySummaryVO.TierSummaryRowVO headRow9 = summary.getHeadRows().stream()
+                .filter(r -> r.getExamineeUserId().equals(9L)).findFirst().orElseThrow();
+        Assertions.assertFalse(headRow9.getEvaluatorDetails().isEmpty(), "汇总明细应包含评分人打分明细");
 
         // Examinee 10 composite: 80 * 0.5 + 80 * 0.5 = 80.0000
         MonthlySummaryVO.SummaryRowVO row10 = summary.getRows().stream()
@@ -444,6 +447,7 @@ public class AppraisalFlowTest {
                 .filter(r -> r.getProjectId().equals(p1Id)).findFirst().orElseThrow();
         Assertions.assertEquals(new BigDecimal("95.0000"), rowP1.getCompositeScore());
         Assertions.assertEquals(1, rowP1.getRank());
+        Assertions.assertFalse(rowP1.getEvaluatorDetails().isEmpty(), "项目汇总明细应包含评分人打分明细");
 
         // P2 weighted average = (80*1.0 + 80*1.0) / 2.0 = 80.0000 (Rank 2)
         AnnualProjectSummaryVO.ProjectSummaryRowVO rowP2 = summary.getRows().stream()

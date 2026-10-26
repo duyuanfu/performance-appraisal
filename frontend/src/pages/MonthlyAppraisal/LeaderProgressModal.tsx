@@ -16,11 +16,18 @@ const { Text } = Typography;
 interface Props {
   batchId: number | null;
   batchName?: string;
+  examineeCount?: number;
   open: boolean;
   onClose: () => void;
 }
 
-export const LeaderProgressModal: React.FC<Props> = ({ batchId, batchName, open, onClose }) => {
+export const LeaderProgressModal: React.FC<Props> = ({
+  batchId,
+  batchName,
+  examineeCount,
+  open,
+  onClose,
+}) => {
   const [loading, setLoading] = useState(false);
   const [urging, setUrging] = useState(false);
   const [list, setList] = useState<EvaluatorProgressVO[]>([]);
@@ -221,7 +228,14 @@ export const LeaderProgressModal: React.FC<Props> = ({ batchId, batchName, open,
     <Modal
       title={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 32 }}>
-          <span>月度考核评分进度与催促 - {batchName}</span>
+          <span>
+            月度考核评分进度与催促 - {batchName}
+            {examineeCount !== undefined && (
+              <Tag color="blue" style={{ marginLeft: 8 }}>
+                被考核人 {examineeCount} 人
+              </Tag>
+            )}
+          </span>
           <Space>
             <Button icon={<ReloadOutlined />} size="small" onClick={loadProgress}>
               刷新
