@@ -17,7 +17,6 @@ import {
   Typography,
   Divider,
   Radio,
-  Alert,
 } from 'antd';
 import {
   PlusOutlined,
@@ -587,16 +586,6 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
               </Form.Item>
             </Col>
           </Row>
-
-          {targetCategory === 'DEPT_DEPUTY' && (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="内设部门副职月度考核权重规则"
-              description="中心分管领导 35% + 其他中心领导均分 20% + 直属本部门正职 30% + 部门副职互评均分 15% = 100%。系统将自动根据上下级关系动态识别。"
-            />
-          )}
 
           <Row gutter={16}>
             <Col span={14}>
