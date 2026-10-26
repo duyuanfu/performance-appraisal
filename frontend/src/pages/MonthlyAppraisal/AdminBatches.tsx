@@ -18,7 +18,6 @@ import {
   Divider,
   Radio,
   Alert,
-  Segmented,
 } from 'antd';
 import {
   PlusOutlined,
@@ -467,17 +466,6 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
     },
   ];
 
-  const pageTitle =
-    category === 'DEPT_DEPUTY'
-      ? '部门副职月度绩效评审'
-      : category === 'DEPT_HEAD'
-      ? '部门正职月度绩效评审'
-      : '月度绩效评审管理';
-
-  const pageSubtitle = category
-    ? `管理${category === 'DEPT_DEPUTY' ? '副职' : '正职'}评审批次，支持创建、发布、归档、进度查看与汇总排名`
-    : '支持正职/副职独立考核，统一管理月度评审批次全生命周期';
-
   const categoryScopedBatches = batches.filter((b) => {
     if (category) {
       return (b.category || 'DEPT_HEAD') === category;
@@ -491,92 +479,61 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
 
   return (
     <div>
-      <Card
-        className="app-page-card"
-        title={
-          <div>
-            <div className="app-page-title">{pageTitle}</div>
-            <div className="app-page-subtitle">{pageSubtitle}</div>
-          </div>
-        }
-        extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleOpenCreateModal}
-          >
-            {category === 'DEPT_DEPUTY'
-              ? '创建副职评审批次'
-              : category === 'DEPT_HEAD'
-              ? '创建正职评审批次'
-              : '创建月度考核批次'}
-          </Button>
-        }
-        style={{ marginBottom: 16 }}
-      >
-        <Space size="middle" wrap>
-          {!category && (
-            <Segmented
-              value={categoryFilter}
-              onChange={(value) =>
-                setCategoryFilter(value as 'ALL' | 'DEPT_HEAD' | 'DEPT_DEPUTY')
-              }
-              options={[
-                { label: '全部考核对象', value: 'ALL' },
-                { label: '部门正职', value: 'DEPT_HEAD' },
-                { label: '部门副职', value: 'DEPT_DEPUTY' },
-              ]}
-            />
-          )}
+      <Card title="月度绩效考核批次管理（支持正职/副职独立考核）" style={{ marginBottom: 16 }}>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Space size="middle" wrap>
+              {!category && (
+                <Radio.Group
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  buttonStyle="solid"
+                >
+                  <Radio.Button value="ALL">全部考核对象</Radio.Button>
+                  <Radio.Button value="DEPT_HEAD">部门正职考核</Radio.Button>
+                  <Radio.Button value="DEPT_DEPUTY">部门副职考核</Radio.Button>
+                </Radio.Group>
+              )}
 
-          <Segmented
-            value={statusFilter}
-            onChange={(value) =>
-              setStatusFilter(value as 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT')
-            }
-            options={[
-              { label: `全部 (${categoryScopedBatches.length})`, value: 'ALL' },
-              {
-                label: `评分中 (${
-                  categoryScopedBatches.filter((b) => b.status === 'IN_PROGRESS').length
-                })`,
-                value: 'IN_PROGRESS',
-              },
-              {
-                label: `已归档 (${
-                  categoryScopedBatches.filter((b) => b.status === 'COMPLETED').length
-                })`,
-                value: 'COMPLETED',
-              },
-              {
-                label: `草稿 (${
-                  categoryScopedBatches.filter((b) => b.status === 'DRAFT').length
-                })`,
-                value: 'DRAFT',
-              },
-            ]}
-          />
-          <Button icon={<ReloadOutlined />} onClick={loadBatches}>
-            刷新
-          </Button>
-        </Space>
+              <Radio.Group
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <Radio.Button value="ALL">全部状态 ({categoryScopedBatches.length})</Radio.Button>
+                <Radio.Button value="IN_PROGRESS">
+                  评分中 ({categoryScopedBatches.filter((b) => b.status === 'IN_PROGRESS').length})
+                </Radio.Button>
+                <Radio.Button value="COMPLETED">
+                  已归档 ({categoryScopedBatches.filter((b) => b.status === 'COMPLETED').length})
+                </Radio.Button>
+                <Radio.Button value="DRAFT">
+                  草稿 ({categoryScopedBatches.filter((b) => b.status === 'DRAFT').length})
+                </Radio.Button>
+              </Radio.Group>
+              <Button icon={<ReloadOutlined />} onClick={loadBatches}>
+                刷新
+              </Button>
+            </Space>
+          </Col>
+          <Col>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleOpenCreateModal}
+            >
+              创建月度考核批次
+            </Button>
+          </Col>
+        </Row>
       </Card>
 
-      <Card className="app-table-card" styles={{ body: { padding: 0 } }}>
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={filteredBatches}
-          loading={loading}
-          size="middle"
-          scroll={{ x: 1100 }}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
-          }}
-        />
-      </Card>
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={filteredBatches}
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
 
       {/* Summary Matrix Modal */}
       <BatchSummaryModal
@@ -587,15 +544,7 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
 
       {/* Create Batch Modal */}
       <Modal
-        title={
-          relaunchBatchId
-            ? '重新发起月度考核批次'
-            : category === 'DEPT_DEPUTY'
-            ? '创建部门副职月度绩效考核批次'
-            : category === 'DEPT_HEAD'
-            ? '创建部门正职月度绩效考核批次'
-            : '创建月度绩效考核批次'
-        }
+        title="创建月度绩效考核批次"
         open={createModalVisible}
         width={960}
         onOk={handleCreateSubmit}
@@ -629,7 +578,6 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
                       });
                     }}
                     buttonStyle="solid"
-                    style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}
                   >
                     <Radio.Button value="DEPT_HEAD">
                       部门正职考核（{examineeCandidates.filter((u) => u.positionCategory === 'DEPT_HEAD').length}人）
@@ -655,8 +603,8 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
             }
           />
 
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={14}>
+          <Row gutter={16}>
+            <Col span={14}>
               <Form.Item
                 name="batchName"
                 label="考核批次名称"
@@ -665,7 +613,7 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
                 <Input placeholder="如：2026年10月内设部门正职绩效考核" />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={10}>
+            <Col span={10}>
               <Form.Item
                 name="appraisalPeriod"
                 label="考核月份"
@@ -719,17 +667,9 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
             </div>
             <Row gutter={[16, 16]}>
               {roleWeights.map((rw) => (
-                <Col key={rw.roleCategory} xs={24} sm={12}>
-                  <Card size="small" styles={{ body: { padding: '8px 12px' } }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: 8,
-                        flexWrap: 'wrap',
-                      }}
-                    >
+                <Col key={rw.roleCategory} span={12}>
+                  <Card size="small" bodyStyle={{ padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text strong style={{ fontSize: 13 }}>{rw.roleName}</Text>
                       <InputNumber
                         value={rw.weight}
@@ -737,7 +677,7 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
                         max={100}
                         precision={4}
                         addonAfter="%"
-                        style={{ width: 140, maxWidth: '100%' }}
+                        style={{ width: 140 }}
                         onChange={(v) => handleRoleWeightChange(rw.roleCategory, v)}
                       />
                     </div>

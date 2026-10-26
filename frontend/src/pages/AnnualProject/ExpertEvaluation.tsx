@@ -223,7 +223,7 @@ export const ExpertEvaluationPage: React.FC = () => {
         <span
           style={{
             cursor: 'pointer',
-            color: record.projectId === selectedProjectId ? '#2563eb' : 'inherit',
+            color: record.projectId === selectedProjectId ? '#1890ff' : 'inherit',
             fontWeight: record.projectId === selectedProjectId ? 'bold' : 'normal',
           }}
           onClick={() => setSelectedProjectId(record.projectId)}
@@ -296,7 +296,7 @@ export const ExpertEvaluationPage: React.FC = () => {
       render: (_: any, record: any) => {
         const total = calculateRowTotal(record.projectId);
         return (
-          <Text strong style={{ color: '#2563eb', fontSize: 15 }}>
+          <Text strong style={{ color: '#1890ff', fontSize: 15 }}>
             {total.toFixed(4)}
           </Text>
         );
@@ -315,7 +315,7 @@ export const ExpertEvaluationPage: React.FC = () => {
 
   if (!loading && batches.length === 0) {
     return (
-      <Card className="app-page-card" style={{ padding: 40, textAlign: 'center' }}>
+      <Card style={{ padding: 40, textAlign: 'center' }}>
         <Empty description="当前暂无分配给您的年度项目在线评审任务" />
       </Card>
     );
@@ -323,21 +323,15 @@ export const ExpertEvaluationPage: React.FC = () => {
 
   return (
     <div>
-      <Card className="app-page-card" style={{ marginBottom: 16 }}>
-        <div style={{ marginBottom: 16 }}>
-          <div className="app-page-title">项目在线评审工作台</div>
-          <div className="app-page-subtitle">
-            选择项目评审批次，按项目维度完成评分并提交，截止前可撤回修改
-          </div>
-        </div>
+      <Card style={{ marginBottom: 16 }}>
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
-          <Col xs={24} lg={16}>
-            <Space size="middle" wrap>
-              <Text strong style={{ fontSize: 14 }}>选择项目评审批次</Text>
+          <Col>
+            <Space size="middle">
+              <Text strong style={{ fontSize: 16 }}>选择项目评审批次：</Text>
               <Select
                 value={selectedBatchId}
                 onChange={setSelectedBatchId}
-                style={{ width: 440, maxWidth: '100%' }}
+                style={{ width: 440 }}
                 placeholder="请选择年度项目评审批次"
               >
                 {batches.map((b) => (
@@ -373,8 +367,8 @@ export const ExpertEvaluationPage: React.FC = () => {
             </Space>
           </Col>
 
-          <Col xs={24} lg={8}>
-            <Space wrap>
+          <Col>
+            <Space>
               {isSubmitted && !isExpired && !isArchived && (
                 <Button icon={<UndoOutlined />} onClick={handleWithdraw}>
                   撤回修改
@@ -429,7 +423,7 @@ export const ExpertEvaluationPage: React.FC = () => {
               style={{ marginTop: 12 }}
               message={
                 <span>
-                  当前考评主体：<strong style={{ color: '#2563eb' }}>{user?.realName}</strong>（
+                  当前考评主体：<strong style={{ color: '#1890ff' }}>{user?.realName}</strong>（
                   {roleSummary} - {user?.department || '原料中心'}）
                 </span>
               }
@@ -460,10 +454,9 @@ export const ExpertEvaluationPage: React.FC = () => {
       {/* 上下分布布局：上方【项目评审界面（专家）】占满整栏，下方【材料查阅】占满整栏 */}
       {/* 1. 上方：项目评审打分表格（全宽占满整栏） */}
       <Card
-        className="app-page-card"
         title="项目评审界面（专家）"
         style={{ marginBottom: 16 }}
-        styles={{ body: { padding: 16 } }}
+        bodyStyle={{ padding: 16 }}
       >
         <Table
           rowKey="projectId"
@@ -473,7 +466,6 @@ export const ExpertEvaluationPage: React.FC = () => {
           pagination={false}
           bordered
           size="middle"
-          scroll={{ x: 900 }}
           rowClassName={(record) =>
             record.projectId === selectedProjectId ? 'ant-table-row-selected' : ''
           }
@@ -486,14 +478,12 @@ export const ExpertEvaluationPage: React.FC = () => {
           style={{
             marginTop: 16,
             padding: '12px 16px',
-            background: '#f8fafc',
-            borderRadius: 10,
+            background: '#fafafa',
+            borderRadius: 6,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            gap: 8,
-            flexWrap: 'wrap',
-            border: '1px solid #e2e8f0',
+            border: '1px solid #f0f0f0',
           }}
         >
           <Space size="large">
@@ -516,17 +506,8 @@ export const ExpertEvaluationPage: React.FC = () => {
 
       {/* 2. 下方：材料查阅（全宽内嵌 PDF 阅读器） */}
       <Card
-        className="app-page-card"
         title={
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-            }}
-          >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>材料查阅: {currentProject?.projectName || '请选择项目'}</span>
             <Radio.Group
               size="small"
@@ -542,7 +523,7 @@ export const ExpertEvaluationPage: React.FC = () => {
             </Radio.Group>
           </div>
         }
-        styles={{ body: { padding: 8, height: 'min(720px, 70vh)' } }}
+        bodyStyle={{ padding: 8, height: '720px' }}
       >
         {currentPdfUrl ? (
           <iframe

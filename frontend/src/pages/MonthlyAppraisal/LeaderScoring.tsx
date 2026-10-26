@@ -245,7 +245,7 @@ export const LeaderScoringPage: React.FC = () => {
       render: (_: any, record: any) => {
         const total = calculateRowTotal(record.examineeUserId);
         return (
-          <Text strong style={{ color: '#2563eb', fontSize: 15 }}>
+          <Text strong style={{ color: '#1890ff', fontSize: 15 }}>
             {total.toFixed(4)}
           </Text>
         );
@@ -255,7 +255,7 @@ export const LeaderScoringPage: React.FC = () => {
 
   if (!loading && batches.length === 0) {
     return (
-      <Card className="app-page-card" style={{ padding: 40, textAlign: 'center' }}>
+      <Card style={{ padding: 40, textAlign: 'center' }}>
         <Empty description="当前暂无分配给您的月度绩效考核打分任务" />
       </Card>
     );
@@ -263,21 +263,15 @@ export const LeaderScoringPage: React.FC = () => {
 
   return (
     <div>
-      <Card className="app-page-card" style={{ marginBottom: 16 }}>
-        <div style={{ marginBottom: 16 }}>
-          <div className="app-page-title">月度绩效考评打分</div>
-          <div className="app-page-subtitle">
-            选择考核批次后按考核指标完成打分，提交后可在截止时间前撤回修改
-          </div>
-        </div>
+      <Card style={{ marginBottom: 16 }}>
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
-          <Col xs={24} lg={16}>
-            <Space size="middle" wrap>
-              <Text strong style={{ fontSize: 14 }}>选择考核批次</Text>
+          <Col>
+            <Space size="middle">
+              <Text strong style={{ fontSize: 16 }}>选择考核批次：</Text>
               <Select
                 value={selectedBatchId}
                 onChange={setSelectedBatchId}
-                style={{ width: 440, maxWidth: '100%' }}
+                style={{ width: 440 }}
                 placeholder="请选择月度考核批次"
               >
                 {batches.map((b) => (
@@ -313,8 +307,8 @@ export const LeaderScoringPage: React.FC = () => {
             </Space>
           </Col>
 
-          <Col xs={24} lg={8}>
-            <Space wrap>
+          <Col>
+            <Space>
               {isSubmitted && !isExpired && !isArchived && (
                 <Button
                   icon={<UndoOutlined />}
@@ -396,18 +390,15 @@ export const LeaderScoringPage: React.FC = () => {
         />
       )}
 
-      <Card className="app-table-card" styles={{ body: { padding: 0 } }}>
-        <Table
-          rowKey="examineeUserId"
-          columns={dynamicColumns}
-          dataSource={scoringData?.rows || []}
-          loading={loading}
-          pagination={false}
-          size="middle"
-          scroll={{ x: 'max-content' }}
-          bordered
-        />
-      </Card>
+      <Table
+        rowKey="examineeUserId"
+        columns={dynamicColumns}
+        dataSource={scoringData?.rows || []}
+        loading={loading}
+        pagination={false}
+        scroll={{ x: 'max-content' }}
+        bordered
+      />
     </div>
   );
 };

@@ -136,7 +136,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
       width: 130,
       fixed: 'right' as const,
       render: (score: number) => (
-        <Text strong style={{ color: '#2563eb', fontSize: 16 }}>
+        <Text strong style={{ color: '#1890ff', fontSize: 16 }}>
           {Number(score).toFixed(4)}
         </Text>
       ),
@@ -164,7 +164,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
             fixed: 'right' as const,
             render: (rank: number) => {
               const color =
-                rank === 1 ? '#dc2626' : rank === 2 ? '#ea580c' : rank === 3 ? '#d97706' : '#475569';
+                rank === 1 ? '#f5222d' : rank === 2 ? '#fa8c16' : rank === 3 ? '#faad14' : '#595959';
               return (
                 <Tag color={color} style={{ fontWeight: 'bold' }}>
                   {rank}
@@ -239,7 +239,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
         </div>
         {data?.averageScore !== undefined && (
           <Text strong style={{ fontSize: 13 }}>
-            所有参评项目平均分：<span style={{ color: '#2563eb' }}>{Number(data.averageScore).toFixed(4)} 分</span>
+            所有参评项目平均分：<span style={{ color: '#1890ff' }}>{Number(data.averageScore).toFixed(4)} 分</span>
           </Text>
         )}
       </div>
@@ -279,7 +279,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
                 {
                   label: '综合得分',
                   value: (
-                    <Text strong style={{ color: '#2563eb' }}>
+                    <Text strong style={{ color: '#1890ff' }}>
                       {renderScore(detailRow.compositeScore)}
                     </Text>
                   ),

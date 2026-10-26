@@ -17,7 +17,7 @@ import {
   Typography,
   Divider,
   Alert,
-  Segmented,
+  Radio,
   Tooltip,
 } from 'antd';
 import {
@@ -76,9 +76,6 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
   const { activeRole } = useAuth();
   const isSpecialInnovation = batchType === 'SPECIAL_INNOVATION';
   const pageTitle = isSpecialInnovation ? '专项与创新任务评审管理' : '目标绩效任务评审管理';
-  const pageSubtitle = isSpecialInnovation
-    ? '管理专项与创新任务评审批次、参评项目、专家打分与汇总排名'
-    : '管理目标绩效任务评审批次、参评项目、专家打分与汇总排名';
 
   const [batches, setBatches] = useState<ProjectBatchVO[]>([]);
   const [loading, setLoading] = useState(false);
@@ -546,74 +543,50 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
 
   return (
     <div>
-      <Card
-        className="app-page-card"
-        title={
-          <div>
-            <div className="app-page-title">{pageTitle}</div>
-            <div className="app-page-subtitle">{pageSubtitle}</div>
-          </div>
-        }
-        extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleOpenCreateModal}
-          >
-            创建{isSpecialInnovation ? '专项与创新任务' : '目标绩效任务'}评审批次
-          </Button>
-        }
-        style={{ marginBottom: 16 }}
-      >
-        <Space size="middle" wrap>
-          <Segmented
-            value={statusFilter}
-            onChange={(value) =>
-              setStatusFilter(value as 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'DRAFT')
-            }
-            options={[
-              { label: `全部 (${batches.length})`, value: 'ALL' },
-              {
-                label: `评审中 (${
-                  batches.filter((b) => b.status === 'IN_PROGRESS').length
-                })`,
-                value: 'IN_PROGRESS',
-              },
-              {
-                label: `已归档 (${
-                  batches.filter((b) => b.status === 'COMPLETED').length
-                })`,
-                value: 'COMPLETED',
-              },
-              {
-                label: `草稿 (${
-                  batches.filter((b) => b.status === 'DRAFT').length
-                })`,
-                value: 'DRAFT',
-              },
-            ]}
-          />
-          <Button icon={<ReloadOutlined />} onClick={loadBatches}>
-            刷新
-          </Button>
-        </Space>
+      <Card title={pageTitle} style={{ marginBottom: 16 }}>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Space size="middle">
+              <Radio.Group
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                buttonStyle="solid"
+              >
+                <Radio.Button value="ALL">全部 ({batches.length})</Radio.Button>
+                <Radio.Button value="IN_PROGRESS">
+                  评审中 ({batches.filter((b) => b.status === 'IN_PROGRESS').length})
+                </Radio.Button>
+                <Radio.Button value="COMPLETED">
+                  已归档 ({batches.filter((b) => b.status === 'COMPLETED').length})
+                </Radio.Button>
+                <Radio.Button value="DRAFT">
+                  草稿 ({batches.filter((b) => b.status === 'DRAFT').length})
+                </Radio.Button>
+              </Radio.Group>
+              <Button icon={<ReloadOutlined />} onClick={loadBatches}>
+                刷新
+              </Button>
+            </Space>
+          </Col>
+          <Col>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleOpenCreateModal}
+            >
+              创建{isSpecialInnovation ? '专项与创新任务' : '目标绩效任务'}评审批次
+            </Button>
+          </Col>
+        </Row>
       </Card>
 
-      <Card className="app-table-card" styles={{ body: { padding: 0 } }}>
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={filteredBatches}
-          loading={loading}
-          size="middle"
-          scroll={{ x: 1200 }}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
-          }}
-        />
-      </Card>
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={filteredBatches}
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
 
       {/* Project Candidates Management Modal */}
       <ProjectManagementModal
@@ -707,8 +680,8 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
         destroyOnClose
       >
         <Form form={form} layout="vertical">
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={16}>
+          <Row gutter={16}>
+            <Col span={16}>
               <Form.Item
                 name="batchName"
                 label="评审批次名称"
@@ -721,7 +694,7 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
                 />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={8}>
+            <Col span={8}>
               <Form.Item
                 name="appraisalPeriod"
                 label="评审年度"
@@ -778,17 +751,9 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
             </div>
             <Row gutter={[16, 16]}>
               {mainRoleWeights.map((rw) => (
-                <Col key={rw.roleCategory} xs={24} sm={12} md={8}>
-                  <Card size="small" styles={{ body: { padding: '8px 12px' } }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: 8,
-                        flexWrap: 'wrap',
-                      }}
-                    >
+                <Col key={rw.roleCategory} span={8}>
+                  <Card size="small" bodyStyle={{ padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text strong style={{ fontSize: 13 }}>{rw.roleName}</Text>
                       <InputNumber
                         value={rw.weight}
@@ -796,7 +761,7 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
                         max={100}
                         precision={4}
                         addonAfter="%"
-                        style={{ width: 120, maxWidth: '100%' }}
+                        style={{ width: 120 }}
                         onChange={(v) => handleMainRoleWeightChange(rw.roleCategory, v)}
                       />
                     </div>
@@ -821,20 +786,9 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
             </div>
             <Row gutter={[16, 16]}>
               {leaderSubWeights.map((rw) => (
-                <Col key={rw.roleCategory} xs={24} sm={12} md={8}>
-                  <Card
-                    size="small"
-                    styles={{ body: { padding: '8px 12px', background: '#f8fafc' } }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: 8,
-                        flexWrap: 'wrap',
-                      }}
-                    >
+                <Col key={rw.roleCategory} span={8}>
+                  <Card size="small" bodyStyle={{ padding: '8px 12px', background: '#fafafa' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text style={{ fontSize: 13 }}>{rw.roleName}</Text>
                       <InputNumber
                         value={rw.weight}
@@ -842,7 +796,7 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
                         max={100}
                         precision={4}
                         addonAfter="%"
-                        style={{ width: 120, maxWidth: '100%' }}
+                        style={{ width: 120 }}
                         onChange={(v) => handleLeaderSubWeightChange(rw.roleCategory, v)}
                       />
                     </div>

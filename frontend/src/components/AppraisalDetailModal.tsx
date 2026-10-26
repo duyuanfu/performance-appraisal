@@ -108,7 +108,7 @@ export const AppraisalDetailModal: React.FC<Props> = ({
         score === undefined || score === null ? (
           <Text type="secondary">-</Text>
         ) : (
-          <Text strong style={{ color: '#2563eb' }}>
+          <Text strong style={{ color: '#1890ff' }}>
             {formatScore(score)}
           </Text>
         ),
@@ -133,12 +133,7 @@ export const AppraisalDetailModal: React.FC<Props> = ({
     >
       {subtitle && <div style={{ marginBottom: 12 }}>{subtitle}</div>}
       {summaryItems && summaryItems.length > 0 && (
-        <Descriptions
-          bordered
-          size="small"
-          column={{ xs: 1, sm: 2, md: 4 }}
-          style={{ marginBottom: 16 }}
-        >
+        <Descriptions bordered size="small" column={4} style={{ marginBottom: 16 }}>
           {summaryItems.map((item) => (
             <Descriptions.Item key={item.label} label={item.label}>
               {item.value}

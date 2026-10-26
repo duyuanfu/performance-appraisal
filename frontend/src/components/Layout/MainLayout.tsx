@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Layout,
   Menu,
@@ -20,12 +20,9 @@ import {
   AuditOutlined,
   ProjectOutlined,
   TeamOutlined,
+  TrophyOutlined,
   CheckCircleOutlined,
   LockOutlined,
-  MenuOutlined,
-  FlagOutlined,
-  BulbOutlined,
-  BarChartOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -59,51 +56,6 @@ export const MainLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [isMobile, setIsMobile] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 991px)').matches
-  );
-  const [collapsed, setCollapsed] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 991px)').matches
-  );
-  const [openKeys, setOpenKeys] = useState<string[]>(['monthly-group', 'annual-group']);
-
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 991px)');
-    const handleChange = (event: MediaQueryListEvent) => {
-      setIsMobile(event.matches);
-      setCollapsed(event.matches);
-    };
-    media.addEventListener('change', handleChange);
-    return () => media.removeEventListener('change', handleChange);
-  }, []);
-
-  useEffect(() => {
-    const shouldLockBody = isMobile && !collapsed;
-    document.body.style.overflow = shouldLockBody ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isMobile, collapsed]);
-
-  useEffect(() => {
-    if (isMobile) {
-      setCollapsed(true);
-    }
-  }, [location.pathname, isMobile]);
-
-  useEffect(() => {
-    const group = location.pathname.startsWith('/monthly')
-      ? 'monthly-group'
-      : location.pathname.startsWith('/annual') ||
-        location.pathname.startsWith('/target-project') ||
-        location.pathname.startsWith('/special-innovation')
-      ? 'annual-group'
-      : null;
-    if (group) {
-      setOpenKeys((prev) => (prev.includes(group) ? prev : [...prev, group]));
-    }
-  }, [location.pathname]);
-
   // Change password modal state
   const [changePwdVisible, setChangePwdVisible] = useState(false);
   const [submittingPwd, setSubmittingPwd] = useState(false);
@@ -135,12 +87,12 @@ export const MainLayout: React.FC = () => {
             children: [
               {
                 key: '/target-project-admin',
-                icon: <FlagOutlined />,
+                icon: <ProjectOutlined />,
                 label: '目标绩效任务评审',
               },
               {
                 key: '/special-innovation-admin',
-                icon: <BulbOutlined />,
+                icon: <TrophyOutlined />,
                 label: '专项与创新任务评审',
               },
             ],
@@ -164,12 +116,12 @@ export const MainLayout: React.FC = () => {
             children: [
               {
                 key: '/target-project-admin',
-                icon: <FlagOutlined />,
+                icon: <ProjectOutlined />,
                 label: '目标绩效任务评审',
               },
               {
                 key: '/special-innovation-admin',
-                icon: <BulbOutlined />,
+                icon: <TrophyOutlined />,
                 label: '专项与创新任务评审',
               },
             ],
@@ -202,7 +154,7 @@ export const MainLayout: React.FC = () => {
           },
           {
             key: '/my-performance',
-            icon: <BarChartOutlined />,
+            icon: <TrophyOutlined />,
             label: '我的月度考核结果',
           },
         ];
@@ -215,7 +167,7 @@ export const MainLayout: React.FC = () => {
           },
           {
             key: '/my-performance',
-            icon: <BarChartOutlined />,
+            icon: <TrophyOutlined />,
             label: '我的月度考核结果',
           },
         ];
@@ -231,7 +183,7 @@ export const MainLayout: React.FC = () => {
         return [
           {
             key: '/my-performance',
-            icon: <BarChartOutlined />,
+            icon: <TrophyOutlined />,
             label: '我的月度考核与排名',
           },
         ];
@@ -241,12 +193,6 @@ export const MainLayout: React.FC = () => {
   };
 
   const menuItems = getMenuItems();
-  const selectedMenuKey =
-    location.pathname === '/monthly-admin'
-      ? 'monthly-group'
-      : location.pathname === '/annual-admin'
-      ? 'annual-group'
-      : location.pathname;
 
   const roleMenuItems = roles.map((r) => ({
     key: r.roleCode,
@@ -314,48 +260,43 @@ export const MainLayout: React.FC = () => {
   };
 
   return (
-    <Layout className="app-shell">
-      <Header className="app-header">
-        <div className="app-header-left">
-          <Button
-            type="text"
-            className="app-menu-toggle"
-            icon={<MenuOutlined />}
-            onClick={() => setCollapsed((value) => !value)}
-            aria-label="切换导航菜单"
-            aria-expanded={!collapsed}
-            aria-controls="app-navigation"
-          />
-          <div className="app-brand">
-            <div className="app-brand-mark">
-              <AuditOutlined />
-            </div>
-            <div className="app-brand-copy">
-              <div className="app-brand-title">原料中心评审管理系统</div>
-              <div className="app-brand-subtitle">Performance Appraisal</div>
-            </div>
-          </div>
+    <Layout style={{ minHeight: '100vh' }}>
+      <Header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: '#001529',
+          padding: '0 24px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <AuditOutlined style={{ fontSize: 24, color: '#1890ff', marginRight: 12 }} />
+          <Text strong style={{ color: '#ffffff', fontSize: 18, letterSpacing: 1 }}>
+            原料中心评审管理系统
+          </Text>
         </div>
 
-        <Space size="middle" className="app-header-right">
+        <Space size="large">
           {/* Multi-role switcher */}
-          <Space className="app-role-switch">
-            <Text className="app-role-label">当前身份</Text>
+          <Space>
+            <Text style={{ color: '#8c8c8c' }}>当前身份:</Text>
             {roles.length > 1 ? (
               <Dropdown menu={{ items: roleMenuItems }} placement="bottomRight">
                 <Button
                   type="primary"
                   ghost
                   icon={<SwapOutlined />}
-                  className="app-role-switch-btn"
+                  style={{ borderRadius: 4 }}
                 >
                   <Tag
                     color={ROLE_COLOR_MAP[activeRole] || 'default'}
-                    className="app-role-tag"
+                    style={{ marginRight: 4 }}
                   >
                     {ROLE_NAME_MAP[activeRole] || activeRole}
                   </Tag>
-                  <span className="app-role-switch-text">切换身份</span>
+                  切换身份
                 </Button>
               </Dropdown>
             ) : (
@@ -367,63 +308,53 @@ export const MainLayout: React.FC = () => {
 
           {/* User profile dropdown */}
           <Dropdown menu={{ items: userActionMenuItems }} placement="bottomRight">
-            <Button
-              type="text"
-              className="app-user-trigger"
-              aria-label={`用户菜单：${user?.realName || ''}`}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: 4,
+              }}
             >
-              <Avatar icon={<UserOutlined />} className="app-user-avatar" />
-              <div className="app-user-meta">
-                <div className="app-user-name">{user?.realName}</div>
-                <div className="app-user-dept">{user?.department}</div>
+              <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />
+              <div style={{ lineHeight: '1.2', textAlign: 'left' }}>
+                <div style={{ color: '#fff', fontWeight: 500 }}>{user?.realName}</div>
+                <div style={{ color: '#8c8c8c', fontSize: 12 }}>{user?.department}</div>
               </div>
-            </Button>
+            </div>
           </Dropdown>
         </Space>
       </Header>
 
-      <Layout className="app-body">
-        {isMobile && !collapsed && (
-          <div
-            className="app-sider-mask"
-            onClick={() => setCollapsed(true)}
-            aria-hidden="true"
+      <Layout>
+        <Sider width={220} style={{ background: '#fff' }}>
+          <Menu
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            defaultOpenKeys={['monthly-group', 'annual-group']}
+            style={{ height: '100%', borderRight: 0 }}
+            items={menuItems}
+            onClick={({ key }) => {
+              if (key.startsWith('/')) {
+                navigate(key);
+              }
+            }}
           />
-        )}
-        <Sider
-          id="app-navigation"
-          width={240}
-          className={`app-sider${isMobile && !collapsed ? ' app-sider-mobile-open' : ''}`}
-          collapsible
-          collapsed={collapsed}
-          onCollapse={setCollapsed}
-          trigger={null}
-          collapsedWidth={0}
-        >
-          <div className="app-sider-inner">
-            <div className="app-sider-label">功能导航</div>
-            <Menu
-              mode="inline"
-              selectedKeys={[selectedMenuKey]}
-              openKeys={openKeys}
-              onOpenChange={setOpenKeys}
-              className="app-menu"
-              items={menuItems}
-              onClick={({ key }) => {
-                if (key.startsWith('/')) {
-                  navigate(key);
-                  if (isMobile) {
-                    setCollapsed(true);
-                  }
-                }
-              }}
-            />
-            <div className="app-sider-footer">V2.0 · 评审管理</div>
-          </div>
         </Sider>
 
-        <Layout className="app-main">
-          <Content className="app-content">
+        <Layout style={{ padding: '20px', minHeight: 'calc(100vh - 64px)' }}>
+          <Content
+            style={{
+              padding: 24,
+              margin: 0,
+              minHeight: 280,
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 1px 4px rgba(0, 0, 0, 0.05)',
+            }}
+          >
             <Outlet />
           </Content>
         </Layout>
