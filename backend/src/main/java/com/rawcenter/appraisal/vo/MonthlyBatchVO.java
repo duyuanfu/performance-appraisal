@@ -32,6 +32,7 @@ public class MonthlyBatchVO {
     private Integer examineeCount;
     private Integer submittedLeaderCount;
     private String mySubmissionStatus; // For current leader: NOT_STARTED, DRAFT, SUBMITTED
+    private Boolean myTaskAssigned; // Whether the current user has a scoring task in this batch
     private Boolean isExpired;
     private List<MonthlyBatchSaveDTO.RoleWeightDTO> roleWeights;
 

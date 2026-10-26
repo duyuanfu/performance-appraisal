@@ -159,6 +159,7 @@ export const ExpertEvaluationPage: React.FC = () => {
       message.success(isSubmit ? '评审打分已正式提交！' : '打分数据已成功暂存');
       loadEvaluationData(selectedBatchId);
       loadBatches();
+      window.dispatchEvent(new Event('review-tasks-updated'));
     } finally {
       setSaving(false);
     }
@@ -174,6 +175,7 @@ export const ExpertEvaluationPage: React.FC = () => {
         message.success('已撤回至草稿状态，现在可以修改打分');
         loadEvaluationData(selectedBatchId);
         loadBatches();
+        window.dispatchEvent(new Event('review-tasks-updated'));
       },
     });
   };
@@ -417,18 +419,6 @@ export const ExpertEvaluationPage: React.FC = () => {
               </Space>
             </div>
 
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginTop: 12 }}
-              message={
-                <span>
-                  当前考评主体：<strong style={{ color: '#1890ff' }}>{user?.realName}</strong>（
-                  {roleSummary} - {user?.department || '原料中心'}）
-                </span>
-              }
-              description="系统按“项目”自动识别您的考评主体角色：若某项目选择您为分管领导，您的评分将计入该项目的“分管领导评分”；其余项目则按其他中心领导/正职/专家角色计分。"
-            />
           </>
         )}
       </Card>

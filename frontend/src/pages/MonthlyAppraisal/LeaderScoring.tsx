@@ -146,6 +146,7 @@ export const LeaderScoringPage: React.FC = () => {
       message.success(isSubmit ? '打分已正式提交！' : '打分数据已成功暂存');
       loadScoringData(selectedBatchId);
       loadBatches();
+      window.dispatchEvent(new Event('review-tasks-updated'));
     } finally {
       setSaving(false);
     }
@@ -161,6 +162,7 @@ export const LeaderScoringPage: React.FC = () => {
         message.success('已撤回至草稿状态，现在可以修改打分');
         loadScoringData(selectedBatchId);
         loadBatches();
+        window.dispatchEvent(new Event('review-tasks-updated'));
       },
     });
   };

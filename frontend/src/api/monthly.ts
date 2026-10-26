@@ -39,6 +39,7 @@ export interface MonthlyBatchVO {
   examineeCount: number;
   submittedLeaderCount: number;
   mySubmissionStatus: 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED';
+  myTaskAssigned?: boolean;
   isExpired: boolean;
   roleWeights?: RoleWeightItem[];
   centerLeaderCount?: number;

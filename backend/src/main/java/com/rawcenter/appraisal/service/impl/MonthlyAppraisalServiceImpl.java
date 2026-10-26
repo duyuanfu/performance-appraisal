@@ -127,11 +127,13 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .eq(MonthlyExaminee::getBatchId, b.getId()));
 
             String myStatus = "NOT_STARTED";
+            boolean myTaskAssigned = false;
             if (currentUserId != null) {
                 EvaluatorProgressVO myProgress = progressList.stream()
                         .filter(p -> currentUserId.equals(p.getUserId()))
                         .findFirst().orElse(null);
                 if (myProgress != null) {
+                    myTaskAssigned = true;
                     myStatus = myProgress.getStatus();
                 }
             }
@@ -159,6 +161,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .deptHeadLeaderCount(deptHeadLeaderCount)
                     .submittedDeptHeadLeaderCount(submittedDeptHeadLeaderCount)
                     .mySubmissionStatus(myStatus)
+                    .myTaskAssigned(myTaskAssigned)
                     .isExpired(isExpired)
                     .createdAt(b.getCreatedAt())
                     .build());

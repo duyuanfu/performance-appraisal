@@ -37,6 +37,8 @@ export interface ProjectBatchVO {
   startTime?: string;
   endTime?: string;
   status: 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED';
+  myTaskAssigned?: boolean;
+  mySubmissionStatus?: 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED';
   totalEvaluatorCount?: number;
   submittedEvaluatorCount?: number;
   centerLeaderCount?: number;

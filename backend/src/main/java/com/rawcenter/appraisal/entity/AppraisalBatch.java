@@ -61,6 +61,13 @@ public class AppraisalBatch {
     private Integer expertCount;
     @TableField(exist = false)
     private Integer submittedExpertCount;
+
+    // 当前登录考评人的任务状态（用于工作台菜单未提交任务提示）
+    @TableField(exist = false)
+    private Boolean myTaskAssigned;
+    @TableField(exist = false)
+    private String mySubmissionStatus;
+
     @TableField(exist = false)
     private List<ProjectRoleWeight> roleWeights;
 

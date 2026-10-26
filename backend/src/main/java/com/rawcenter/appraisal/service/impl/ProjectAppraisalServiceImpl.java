@@ -59,6 +59,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
 
     @Override
     public List<AppraisalBatch> listProjectBatches(String batchType, String status, String keyword) {
+        Long currentUserId = UserContext.getUserId();
         String activeRole = UserContext.get() != null ? UserContext.get().getActiveRole() : null;
 
         LambdaQueryWrapper<AppraisalBatch> wrapper = new LambdaQueryWrapper<AppraisalBatch>()
@@ -87,6 +88,18 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         for (AppraisalBatch b : batches) {
             b.setCategory(b.getProjectCategory());
             List<com.rawcenter.appraisal.vo.EvaluatorProgressVO> progressList = getExpertProgress(b.getId());
+
+            // 当前登录人的评审任务状态：仅统计确实分配给本人的批次
+            com.rawcenter.appraisal.vo.EvaluatorProgressVO myProgress = currentUserId == null ? null
+                    : progressList.stream()
+                    .filter(p -> currentUserId.equals(p.getUserId()))
+                    .findFirst().orElse(null);
+            boolean myTaskAssigned = myProgress != null
+                    && myProgress.getTotalTargetCount() != null
+                    && myProgress.getTotalTargetCount() > 0;
+            b.setMyTaskAssigned(myTaskAssigned);
+            b.setMySubmissionStatus(myTaskAssigned ? myProgress.getStatus() : null);
+
             int totalEvaluators = progressList.size();
             int submittedEvaluators = (int) progressList.stream().filter(p -> "SUBMITTED".equals(p.getStatus())).count();
 

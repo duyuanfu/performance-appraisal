@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Layout,
   Menu,
@@ -12,6 +12,7 @@ import {
   Form,
   Input,
   message,
+  Badge,
 } from 'antd';
 import {
   UserOutlined,
@@ -25,8 +26,11 @@ import {
   LockOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import dayjs from 'dayjs';
 import { useAuth } from '../../context/AuthContext';
 import { changePasswordApi } from '../../api/auth';
+import { listMonthlyBatchesApi, MonthlyBatchVO } from '../../api/monthly';
+import { listProjectBatchesApi, ProjectBatchVO } from '../../api/project';
 
 const { Header, Content, Sider } = Layout;
 const { Text } = Typography;
@@ -52,7 +56,7 @@ const ROLE_COLOR_MAP: Record<string, string> = {
 };
 
 export const MainLayout: React.FC = () => {
-  const { user, activeRole, roles, switchRole, logout } = useAuth();
+  const { user, token, activeRole, roles, switchRole, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -60,6 +64,68 @@ export const MainLayout: React.FC = () => {
   const [changePwdVisible, setChangePwdVisible] = useState(false);
   const [submittingPwd, setSubmittingPwd] = useState(false);
   const [pwdForm] = Form.useForm();
+
+  // 工作台菜单未提交任务提示
+  const [pendingReviewCounts, setPendingReviewCounts] = useState({ monthly: 0, project: 0 });
+
+  useEffect(() => {
+    if (!token) {
+      setPendingReviewCounts({ monthly: 0, project: 0 });
+      return;
+    }
+
+    const showMonthly = ['LEADER', 'DEPT_HEAD', 'DEPT_DEPUTY'].includes(activeRole);
+    const showProject = ['LEADER', 'DEPT_HEAD', 'EXPERT'].includes(activeRole);
+    let cancelled = false;
+
+    const loadPendingCounts = async () => {
+      const [monthlyResult, projectResult] = await Promise.allSettled([
+        showMonthly ? listMonthlyBatchesApi() : Promise.resolve<MonthlyBatchVO[]>([]),
+        showProject ? listProjectBatchesApi() : Promise.resolve<ProjectBatchVO[]>([]),
+      ]);
+      if (cancelled) return;
+
+      const monthly = monthlyResult.status === 'fulfilled'
+        ? monthlyResult.value.filter(
+            (b) =>
+              b.status === 'IN_PROGRESS' &&
+              !b.isExpired &&
+              b.myTaskAssigned === true &&
+              b.mySubmissionStatus !== 'SUBMITTED'
+          ).length
+        : 0;
+
+      const project = projectResult.status === 'fulfilled'
+        ? projectResult.value.filter(
+            (b) =>
+              b.status === 'IN_PROGRESS' &&
+              b.myTaskAssigned === true &&
+              b.mySubmissionStatus !== 'SUBMITTED' &&
+              (!b.endTime || dayjs(b.endTime).isAfter(dayjs()))
+          ).length
+        : 0;
+
+      setPendingReviewCounts({ monthly, project });
+    };
+
+    loadPendingCounts();
+    const timer = window.setInterval(loadPendingCounts, 60000);
+    const refresh = () => loadPendingCounts();
+    window.addEventListener('review-tasks-updated', refresh);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('review-tasks-updated', refresh);
+    };
+  }, [activeRole, token]);
+
+  const reviewMenuLabel = (label: string, count: number) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <span>{label}</span>
+      {count > 0 && <Badge count={count} size="small" />}
+    </span>
+  );
 
   // Dynamic menu items based on active role
   const getMenuItems = () => {
@@ -132,12 +198,12 @@ export const MainLayout: React.FC = () => {
           {
             key: '/leader-scoring',
             icon: <CheckCircleOutlined />,
-            label: '月度绩效打分工作台',
+            label: reviewMenuLabel('月度绩效打分工作台', pendingReviewCounts.monthly),
           },
           {
             key: '/expert-evaluation',
             icon: <ProjectOutlined />,
-            label: '项目评审打分工作台',
+            label: reviewMenuLabel('项目评审打分工作台', pendingReviewCounts.project),
           },
         ];
       case 'DEPT_HEAD':
@@ -145,12 +211,12 @@ export const MainLayout: React.FC = () => {
           {
             key: '/leader-scoring',
             icon: <CheckCircleOutlined />,
-            label: '部门正职月度考评互评',
+            label: reviewMenuLabel('部门正职月度考评互评', pendingReviewCounts.monthly),
           },
           {
             key: '/expert-evaluation',
             icon: <ProjectOutlined />,
-            label: '项目评审打分工作台',
+            label: reviewMenuLabel('项目评审打分工作台', pendingReviewCounts.project),
           },
           {
             key: '/my-performance',
@@ -163,7 +229,7 @@ export const MainLayout: React.FC = () => {
           {
             key: '/leader-scoring',
             icon: <CheckCircleOutlined />,
-            label: '部门副职月度考评互评',
+            label: reviewMenuLabel('部门副职月度考评互评', pendingReviewCounts.monthly),
           },
           {
             key: '/my-performance',
@@ -176,7 +242,7 @@ export const MainLayout: React.FC = () => {
           {
             key: '/expert-evaluation',
             icon: <ProjectOutlined />,
-            label: '项目在线评审工作台',
+            label: reviewMenuLabel('项目在线评审工作台', pendingReviewCounts.project),
           },
         ];
       case 'EMPLOYEE':

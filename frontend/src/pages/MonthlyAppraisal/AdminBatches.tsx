@@ -588,17 +588,15 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
             </Col>
           </Row>
 
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-            message={targetCategory === 'DEPT_HEAD' ? '内设部门正职月度考核权重规则' : '内设部门副职月度考核权重规则'}
-            description={
-              targetCategory === 'DEPT_HEAD'
-                ? '中心主要领导 25% + 分管领导 35% + 其他中心领导均分 15% + 部门正职互评均分 25% = 100%。系统将自动根据上下级关系动态识别。'
-                : '中心分管领导 35% + 其他中心领导均分 20% + 直属本部门正职 30% + 部门副职互评均分 15% = 100%。系统将自动根据上下级关系动态识别。'
-            }
-          />
+          {targetCategory === 'DEPT_DEPUTY' && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="内设部门副职月度考核权重规则"
+              description="中心分管领导 35% + 其他中心领导均分 20% + 直属本部门正职 30% + 部门副职互评均分 15% = 100%。系统将自动根据上下级关系动态识别。"
+            />
+          )}
 
           <Row gutter={16}>
             <Col span={14}>
