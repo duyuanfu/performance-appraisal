@@ -400,6 +400,8 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
             type="link"
             size="small"
             icon={<BarChartOutlined />}
+            disabled={record.status === 'DRAFT'}
+            title={record.status === 'DRAFT' ? '发布后可查看汇总排名' : '查看汇总排名'}
             onClick={() => setSummaryModalBatchId(record.id)}
           >
             汇总排名
@@ -409,6 +411,8 @@ export const MonthlyAdminBatchesPage: React.FC = () => {
             type="link"
             size="small"
             icon={<RedoOutlined />}
+            disabled={record.status === 'DRAFT'}
+            title={record.status === 'DRAFT' ? '发布后可重新发起' : '重新发起'}
             onClick={() => handleOpenRelaunchModal(record)}
           >
             重新发起

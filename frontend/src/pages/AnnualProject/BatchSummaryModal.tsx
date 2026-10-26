@@ -219,14 +219,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
     <Modal
       title={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 32 }}>
-          <span>
-            {isSpecialInnovation
-              ? '专项与创新任务评审汇总与奖次评定'
-              : isTargetProject
-              ? '目标绩效任务评审汇总与奖金测算'
-              : '项目评审汇总排名'}{' '}
-            - {data?.batchName}
-          </span>
+          <span>汇总排名</span>
           <Space>
             <Button icon={<ReloadOutlined />} size="small" onClick={loadSummary}>
               刷新
@@ -253,6 +246,10 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
       width={1280}
       destroyOnClose
     >
+      <div style={{ marginBottom: 12 }}>
+        <Text type="secondary">批次：{data?.batchName}</Text>
+      </div>
+
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <Text strong style={{ marginRight: 12 }}>评审提交进度：</Text>

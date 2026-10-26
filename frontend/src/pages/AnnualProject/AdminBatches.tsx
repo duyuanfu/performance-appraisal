@@ -424,6 +424,8 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
             type="link"
             size="small"
             icon={<BarChartOutlined />}
+            disabled={record.status === 'DRAFT'}
+            title={record.status === 'DRAFT' ? '发布后可查看汇总排名' : '查看汇总排名'}
             onClick={() => setSummaryModalBatchId(record.id)}
           >
             汇总排名
@@ -433,6 +435,8 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
             type="link"
             size="small"
             icon={<RedoOutlined />}
+            disabled={record.status === 'DRAFT'}
+            title={record.status === 'DRAFT' ? '发布后可重新发起' : '重新发起'}
             onClick={() => handleOpenRelaunchModal(record)}
           >
             重新发起
@@ -717,16 +721,8 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
           </Row>
 
           <Divider orientation="left" style={{ margin: '12px 0' }}>
-            1. 考评主体角色及权重配置（按《需求文档.md》标准校验）
+            1. 考评主体角色及权重配置
           </Divider>
-
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-            message="项目评审综合得分加权计算规则（统一标准）"
-            description="综合得分 =（中心主要领导评分×20% + 分管领导评分×30% + 其他中心领导评分×50%）× 50% + 正职评分×40% + 代表评分（评审专家）× 10%"
-          />
 
           <div style={{ marginBottom: 16 }}>
             <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
