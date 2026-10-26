@@ -3,11 +3,9 @@
 -- 严格对应《评审管理系统相关.xlsx》Sheet 2 "测试账号配置" (11位在册人员 + 2位管理员)
 -- =========================================================================
 
-CREATE DATABASE IF NOT EXISTS appraisal_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE appraisal_db;
 
 -- 1. Initialize System Roles
-INSERT IGNORE INTO sys_role (id, role_code, role_name, description) VALUES
+INSERT INTO sys_role (id, role_code, role_name, description) VALUES
 (1, 'SYS_ADMIN', '系统管理员', '负责用户账号、角色权限分配及组织架构维护'),
 (2, 'ADMIN', '业务管理员', '负责考核项目创建、任务发布、催办及数据汇总归档'),
 (3, 'LEADER', '中心领导', '负责对部门正职和副职进行月度考核指标评分'),
@@ -17,7 +15,7 @@ INSERT IGNORE INTO sys_role (id, role_code, role_name, description) VALUES
 (7, 'EMPLOYEE', '普通职工', '被考核人员，可查看本人考核结果');
 
 -- 2. Insert Test Configuration Accounts (2 Admins + 11 Test Personnel)
-INSERT IGNORE INTO sys_user (id, username, password_hash, real_name, department, position, title, position_category, supervisor_id, supervisor_name, dept_head_id, dept_head_name, email, phone, status) VALUES
+INSERT INTO sys_user (id, username, password_hash, real_name, department, position, title, position_category, supervisor_id, supervisor_name, dept_head_id, dept_head_name, email, phone, status) VALUES
 (1, 'admin', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '业务管理员', '原料中心', '业务管理员', '业务管理员', 'EMPLOYEE', NULL, '', NULL, '', 'admin@rawcenter.com', '13800000001', 1),
 (2, 'sys_admin', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '系统管理员', '原料中心', '系统管理员', '系统管理员', 'EMPLOYEE', NULL, '', NULL, '', 'sys_admin@rawcenter.com', '13800000002', 1),
 (3, '13908866003', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '陈剑', '中心领导', '中心主任', '中心主任', 'PRIMARY_LEADER', NULL, '', NULL, '', '', '13908866003', 1),
@@ -33,7 +31,7 @@ INSERT IGNORE INTO sys_user (id, username, password_hash, real_name, department,
 (33, '17787141508', 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', '刘海业', '政工部', '职工', '职工', 'EXPERT', NULL, '', NULL, '', '', '17787141508', 1);
 
 -- 4. Assign User Roles (严格按配置对应单一身份，王昆淼等正副职不兼任普通职工身份)
-INSERT IGNORE INTO sys_user_role (user_id, role_id) VALUES
+INSERT INTO sys_user_role (user_id, role_id) VALUES
 -- 管理员
 (1, 2), -- admin -> ADMIN (业务管理员)
 (2, 1), -- sys_admin -> SYS_ADMIN (系统管理员)

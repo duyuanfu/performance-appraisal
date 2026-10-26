@@ -214,8 +214,8 @@ docker compose ps
 # 或 docker-compose ps
 ```
 容器说明：
-- **`appraisal-mysql`**：MySQL 8.0 容器，自动初始化数据库与数据表，数据持久化挂载至 Docker Volume `mysql-data`；
-- **`appraisal-backend`**：Spring Boot 3 服务，容器内自动编译打包，待 MySQL 就绪后自动启动；材料 PDF 持久化映射至本地 `./data/uploads`；
+- **`appraisal-mysql`**：MySQL 8.0 容器，仅提供数据库服务，数据持久化挂载至 Docker Volume `mysql-data`；
+- **`appraisal-backend`**：Spring Boot 3 服务，启动时由 Flyway 自动执行 `db/migration` 下的版本化脚本；材料 PDF 持久化映射至本地 `./data/uploads`；
 - **`appraisal-frontend`**：Nginx 80 端口容器，内置前端生产页面并自动反向代理 API 流量至后端。
 
 ### 4. 访问系统
@@ -252,8 +252,8 @@ performance-appraisal/
 │   │   └── vo/ & dto/                         # 视图层与传输层对象
 │   ├── src/main/resources/
 │   │   ├── application.yml                    # 核心配置文件（含业务指标参数）
-│   │   ├── schema.sql                         # MySQL 表结构（IF NOT EXISTS 永久持久化）
-│   │   └── data.sql                           # 初始角色与示例账号数据 (INSERT IGNORE)
+│   │   ├── schema.sql                         # MySQL 最终表结构参考（手动查看）
+│   │   └── db/migration/                      # Flyway 版本化脚本（V1 建表、V2 初始化账号）
 │   ├── Dockerfile                             # 后端 Docker 镜像构建文件
 │   └── pom.xml
 │
@@ -292,7 +292,7 @@ performance-appraisal/
 1. **Q：为什么在 Windows 上上传 PDF 报错找不到路径？**
    * A：已通过 `new File(uploadDir).getAbsoluteFile()` 与 Java NIO `Files.copy` 彻底解决，避免了 Tomcat 拼接触发临时路径不存在的问题。
 2. **Q：重启后端服务后，创建的考核流程数据会丢失吗？**
-   * A：不会。数据库初始化脚本已全部优化为 `CREATE TABLE IF NOT EXISTS` 和 `INSERT IGNORE INTO`，持久化保留所有业务数据。
+   * A：不会。数据库结构与初始账号由 Flyway 版本化脚本管理，升级不会清空业务数据。
 3. **Q：为什么新建的草稿批次，领导登录后看不到？**
    * A：这是系统严格的保密与防越权机制。草稿 (`DRAFT`) 状态仅供管理员配置，只有当管理员点击【发布】（变为 `IN_PROGRESS`）后，评分领导和专家才会在工作台中看到该任务。
 4. **Q：归档后领导还能撤回打分吗？**
