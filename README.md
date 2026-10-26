@@ -252,7 +252,6 @@ performance-appraisal/
 │   │   └── vo/ & dto/                         # 视图层与传输层对象
 │   ├── src/main/resources/
 │   │   ├── application.yml                    # 核心配置文件（含业务指标参数）
-│   │   ├── schema.sql                         # MySQL 最终表结构参考（手动查看）
 │   │   └── db/migration/                      # Flyway 版本化脚本（V1 建表、V2 初始化账号）
 │   ├── Dockerfile                             # 后端 Docker 镜像构建文件
 │   └── pom.xml

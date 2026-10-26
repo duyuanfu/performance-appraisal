@@ -1,6 +1,5 @@
 -- MySQL 8.0 initial schema (Flyway V1).
 -- Fresh install only: this is the authoritative schema for new databases.
--- resources/schema.sql is a manual-inspection copy of this schema.
 
 -- 1. Authentication and organization
 CREATE TABLE IF NOT EXISTS sys_user (
