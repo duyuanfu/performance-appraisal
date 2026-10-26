@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Table, Button, Space, Tag, Typography, message, Tabs } from 'antd';
+import { Modal, Table, Button, Space, Tag, Typography, message } from 'antd';
 import {
   DownloadOutlined,
   ReloadOutlined,
@@ -22,7 +22,6 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<MonthlySummaryVO | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('head');
   const [detailRow, setDetailRow] = useState<TierSummaryRowVO | null>(null);
 
   const fmtScore = (value?: number | null) =>
@@ -34,11 +33,6 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
     try {
       const res = await getMonthlyBatchSummaryApi(batchId);
       setData(res);
-      if (res.category === 'DEPT_DEPUTY') {
-        setActiveTab('deputy');
-      } else {
-        setActiveTab('head');
-      }
     } finally {
       setLoading(false);
     }
@@ -68,7 +62,7 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      message.success('Excel 报表导出成功（包含正职/副职双Sheet）');
+      message.success('Excel 报表导出成功');
     } catch (e: any) {
       message.error(e.message || '导出报表失败');
     } finally {
@@ -222,99 +216,6 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
     },
   ];
 
-  // 3. 各指标平均分明细（仅展示单项指标平均分，综合得分与排名以汇总表为准）
-  const metricAverageColumns = [
-    {
-      title: '姓名',
-      dataIndex: 'realName',
-      key: 'realName',
-      width: 110,
-    },
-    {
-      title: '部门',
-      dataIndex: 'department',
-      key: 'department',
-      width: 160,
-    },
-    {
-      title: '职务',
-      dataIndex: 'position',
-      key: 'position',
-      width: 120,
-    },
-    ...(data?.metrics || []).map((m: any) => ({
-      title: `${m.metricName} (${Number(m.weight).toFixed(0)}%)`,
-      key: `metric_${m.id}`,
-      width: 140,
-      render: (_: any, record: any) => {
-        const score = record.metricAvgScores?.[m.id];
-        return score === undefined || score === null ? (
-          <Text type="secondary">-</Text>
-        ) : (
-          <span>{Number(score).toFixed(4)}</span>
-        );
-      },
-    })),
-  ];
-
-  const tabItems = [
-    {
-      key: 'head',
-      label: `内设部门正职考评汇总表 (${data?.headRows?.length || 0}人)`,
-      children: (
-        <Table
-          rowKey="examineeUserId"
-          columns={headColumns}
-          dataSource={data?.headRows || []}
-          loading={loading}
-          pagination={false}
-          size="middle"
-          bordered
-          scroll={{ x: 1100 }}
-        />
-      ),
-    },
-    {
-      key: 'deputy',
-      label: `内设部门副职考评汇总表 (${data?.deputyRows?.length || 0}人)`,
-      children: (
-        <Table
-          rowKey="examineeUserId"
-          columns={deputyColumns}
-          dataSource={data?.deputyRows || []}
-          loading={loading}
-          pagination={false}
-          size="middle"
-          bordered
-          scroll={{ x: 1100 }}
-        />
-      ),
-    },
-    {
-      key: 'metrics',
-      label: `各指标平均分明细 (${data?.rows?.length || 0}人)`,
-      children: (
-        <div>
-          <div style={{ marginBottom: 8 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              展示每位被考核人各考核指标的平均得分（按所有已提交评分人计算），用于分析得分构成；综合得分与排名请以汇总表为准。
-            </Text>
-          </div>
-          <Table
-            rowKey="examineeUserId"
-            columns={metricAverageColumns}
-            dataSource={data?.rows || []}
-            loading={loading}
-            pagination={false}
-            size="middle"
-            bordered
-            scroll={{ x: 900 }}
-          />
-        </div>
-      ),
-    },
-  ];
-
   return (
     <Modal
       title={
@@ -369,7 +270,29 @@ export const BatchSummaryModal: React.FC<Props> = ({ batchId, open, onClose }) =
         </Text>
       </div>
 
-      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+      {data?.category === 'DEPT_DEPUTY' ? (
+        <Table
+          rowKey="examineeUserId"
+          columns={deputyColumns}
+          dataSource={data?.deputyRows || []}
+          loading={loading}
+          pagination={false}
+          size="middle"
+          bordered
+          scroll={{ x: 1100 }}
+        />
+      ) : (
+        <Table
+          rowKey="examineeUserId"
+          columns={headColumns}
+          dataSource={data?.headRows || []}
+          loading={loading}
+          pagination={false}
+          size="middle"
+          bordered
+          scroll={{ x: 1100 }}
+        />
+      )}
 
       <AppraisalDetailModal
         open={!!detailRow}

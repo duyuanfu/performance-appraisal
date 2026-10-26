@@ -318,47 +318,44 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
     {
       title: '考评人员分类打分进度',
       key: 'progress',
-      width: 260,
+      width: 460,
       render: (_: any, record: MonthlyBatchVO) => {
         const total = record.totalEvaluatorCount ?? record.leaderCount ?? 0;
         const submitted = record.submittedEvaluatorCount ?? record.submittedLeaderCount ?? 0;
         const isComplete = total > 0 && submitted === total;
         const isDraft = record.status === 'DRAFT';
+        const tagStyle = { margin: 0, fontSize: 11, lineHeight: '18px', padding: '0 5px', whiteSpace: 'nowrap' as const };
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 600 }}>
-                总计: {submitted} / {total} 人
-              </span>
-              <Button
-                type="link"
-                size="small"
-                disabled={isDraft}
-                title={isDraft ? '发布后可查看进度' : '查看进度'}
-                style={{ padding: 0, height: 'auto', fontSize: 12 }}
-                onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName, examineeCount: record.examineeCount })}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>
+              总计: {submitted} / {total} 人
+            </span>
+            <Button
+              type="link"
+              size="small"
+              disabled={isDraft}
+              title={isDraft ? '发布后可查看进度' : '查看进度'}
+              style={{ padding: 0, height: 'auto', fontSize: 12, flexShrink: 0 }}
+              onClick={() => setProgressModalBatch({ id: record.id, name: record.batchName, examineeCount: record.examineeCount })}
+            >
+              <Tag
+                color={isDraft ? 'default' : isComplete ? 'success' : 'processing'}
+                style={{ ...tagStyle, cursor: isDraft ? 'not-allowed' : 'pointer' }}
               >
-                <Tag
-                  color={isDraft ? 'default' : isComplete ? 'success' : 'processing'}
-                  style={{ marginRight: 0, cursor: isDraft ? 'not-allowed' : 'pointer' }}
-                >
-                  进度
-                </Tag>
-              </Button>
-            </div>
-            <div style={{ fontSize: 11, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              <Tag color="blue" style={{ margin: 0 }}>
-                中心领导: {record.submittedCenterLeaderCount ?? 0}/{record.centerLeaderCount ?? 0}
+                进度
               </Tag>
-              <Tag color={record.category === 'DEPT_DEPUTY' ? 'geekblue' : 'purple'} style={{ margin: 0 }}>
-                {record.category === 'DEPT_DEPUTY' ? '副职互评' : '正职互评'}: {record.submittedPeerCount ?? 0}/{record.peerCount ?? 0}
+            </Button>
+            <Tag color="blue" style={tagStyle}>
+              中心领导: {record.submittedCenterLeaderCount ?? 0}/{record.centerLeaderCount ?? 0}
+            </Tag>
+            <Tag color={record.category === 'DEPT_DEPUTY' ? 'geekblue' : 'purple'} style={tagStyle}>
+              {record.category === 'DEPT_DEPUTY' ? '副职互评' : '正职互评'}: {record.submittedPeerCount ?? 0}/{record.peerCount ?? 0}
+            </Tag>
+            {record.category === 'DEPT_DEPUTY' && (record.deptHeadLeaderCount ?? 0) > 0 && (
+              <Tag color="cyan" style={tagStyle}>
+                本部门正职: {record.submittedDeptHeadLeaderCount ?? 0}/{record.deptHeadLeaderCount ?? 0}
               </Tag>
-              {record.category === 'DEPT_DEPUTY' && (record.deptHeadLeaderCount ?? 0) > 0 && (
-                <Tag color="cyan" style={{ margin: 0 }}>
-                  本部门正职: {record.submittedDeptHeadLeaderCount ?? 0}/{record.deptHeadLeaderCount ?? 0}
-                </Tag>
-              )}
-            </div>
+            )}
           </div>
         );
       },

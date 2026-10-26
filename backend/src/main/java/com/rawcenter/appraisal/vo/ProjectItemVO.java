@@ -17,14 +17,12 @@ public class ProjectItemVO {
     private Long batchId;
     private String projectCode;
     private String projectName;
+    private Long ownerUserId;
     private String ownerName;
     private String category;
     private String department;
     private Long supervisorId;
     private String supervisorName;
-    private java.math.BigDecimal scoreCoefficient;
-    private java.math.BigDecimal bonusAmount;
-    private Integer rankNum;
     private String materialPdfName;
     private Boolean hasMaterial;
     private String attachmentPdfName;
@@ -33,4 +31,7 @@ public class ProjectItemVO {
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime updatedAt;
 }

@@ -59,7 +59,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
 
         LambdaQueryWrapper<AppraisalBatch> wrapper = new LambdaQueryWrapper<AppraisalBatch>()
                 .eq(AppraisalBatch::getBatchType, "MONTHLY")
-                .eq(StringUtils.hasText(category), AppraisalBatch::getCategory, category)
+                .eq(StringUtils.hasText(category), AppraisalBatch::getMonthlyCategory, category)
                 .eq(StringUtils.hasText(status), AppraisalBatch::getStatus, status)
                 .like(StringUtils.hasText(keyword), AppraisalBatch::getBatchName, keyword);
 
@@ -142,7 +142,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                     .id(b.getId())
                     .batchName(b.getBatchName())
                     .batchType(b.getBatchType())
-                    .category(b.getCategory())
+                    .category(b.getMonthlyCategory())
                     .appraisalPeriod(b.getAppraisalPeriod())
                     .startTime(b.getStartTime())
                     .endTime(b.getEndTime())
@@ -222,7 +222,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .id(b.getId())
                 .batchName(b.getBatchName())
                 .batchType(b.getBatchType())
-                .category(b.getCategory())
+                .category(b.getMonthlyCategory())
                 .appraisalPeriod(b.getAppraisalPeriod())
                 .startTime(b.getStartTime())
                 .endTime(b.getEndTime())
@@ -291,7 +291,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             batch = AppraisalBatch.builder()
                     .batchName(dto.getBatchName())
                     .batchType("MONTHLY")
-                    .category(category)
+                    .monthlyCategory(category)
                     .appraisalPeriod(dto.getAppraisalPeriod())
                     .startTime(dto.getStartTime())
                     .endTime(dto.getEndTime())
@@ -308,7 +308,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             }
             batch.setBatchName(dto.getBatchName());
             if (StringUtils.hasText(dto.getCategory())) {
-                batch.setCategory(dto.getCategory());
+                batch.setMonthlyCategory(dto.getCategory());
             }
             batch.setAppraisalPeriod(dto.getAppraisalPeriod());
             batch.setStartTime(dto.getStartTime() != null ? dto.getStartTime() : LocalDateTime.now());
@@ -316,7 +316,10 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             // 重新发起时将状态置为进行中，允许领导继续打分
             batch.setStatus("IN_PROGRESS");
             batch.setUpdatedAt(LocalDateTime.now());
-            batchMapper.updateById(batch);
+            batch.setUpdatedBy(UserContext.getUserId());
+            if (batchMapper.updateById(batch) == 0) {
+                throw new BusinessException(409, "该批次已被其他用户修改，请刷新后重试");
+            }
         }
 
         Long batchId = batch.getId();
@@ -450,7 +453,10 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             batch.setStartTime(LocalDateTime.now());
         }
         batch.setUpdatedAt(LocalDateTime.now());
-        batchMapper.updateById(batch);
+        batch.setUpdatedBy(UserContext.getUserId());
+        if (batchMapper.updateById(batch) == 0) {
+            throw new BusinessException(409, "该批次已被其他用户修改，请刷新后重试");
+        }
     }
 
     @Override
@@ -461,7 +467,10 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         }
         batch.setStatus("COMPLETED");
         batch.setUpdatedAt(LocalDateTime.now());
-        batchMapper.updateById(batch);
+        batch.setUpdatedBy(UserContext.getUserId());
+        if (batchMapper.updateById(batch) == 0) {
+            throw new BusinessException(409, "该批次已被其他用户修改，请刷新后重试");
+        }
     }
 
     @Override
@@ -666,6 +675,10 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         List<AppraisalMetric> metrics = metricService.listMetricsByBatchId(dto.getBatchId());
         Map<Long, AppraisalMetric> metricMap = metrics.stream().collect(Collectors.toMap(AppraisalMetric::getId, m -> m));
 
+        SysUser evaluator = userMapper.selectById(leaderUserId);
+        String evaluatorRoleType = evaluator != null && StringUtils.hasText(evaluator.getPositionCategory())
+                ? evaluator.getPositionCategory() : "";
+
         boolean isSubmit = Boolean.TRUE.equals(dto.getIsSubmit());
 
         if (CollectionUtils.isEmpty(dto.getItems())) {
@@ -717,16 +730,23 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                         .batchId(dto.getBatchId())
                         .leaderUserId(leaderUserId)
                         .examineeUserId(item.getExamineeUserId())
+                        .evaluatorRoleType(evaluatorRoleType)
                         .totalScore(totalScore)
                         .status(isSubmit ? "SUBMITTED" : "DRAFT")
                         .submittedAt(isSubmit ? LocalDateTime.now() : null)
+                        .createdBy(leaderUserId)
+                        .updatedBy(leaderUserId)
                         .build();
                 scoreRecordMapper.insert(record);
             } else {
                 record.setTotalScore(totalScore);
                 record.setStatus(isSubmit ? "SUBMITTED" : "DRAFT");
                 record.setSubmittedAt(isSubmit ? LocalDateTime.now() : null);
-                scoreRecordMapper.updateById(record);
+                record.setEvaluatorRoleType(evaluatorRoleType);
+                record.setUpdatedBy(leaderUserId);
+                if (scoreRecordMapper.updateById(record) == 0) {
+                    throw new BusinessException(409, "该评分记录已被其他用户修改，请刷新后重试");
+                }
             }
 
             // Save details
@@ -776,7 +796,10 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
 
         for (MonthlyScoreRecord r : records) {
             r.setStatus("DRAFT");
-            scoreRecordMapper.updateById(r);
+            r.setUpdatedBy(leaderUserId);
+            if (scoreRecordMapper.updateById(r) == 0) {
+                throw new BusinessException(409, "该评分记录已被其他用户修改，请刷新后重试");
+            }
         }
     }
 
@@ -787,7 +810,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             throw new BusinessException(404, "批次不存在");
         }
 
-        String category = StringUtils.hasText(batch.getCategory()) ? batch.getCategory() : "DEPT_HEAD";
+        String category = StringUtils.hasText(batch.getMonthlyCategory()) ? batch.getMonthlyCategory() : "DEPT_HEAD";
 
         // 1. 获取所有参评被考核人员
         List<MonthlyExaminee> examinees = examineeMapper.selectList(new LambdaQueryWrapper<MonthlyExaminee>()
@@ -1304,7 +1327,7 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
         return MonthlySummaryVO.builder()
                 .batchId(batchId)
                 .batchName(batch.getBatchName())
-                .category(batch.getCategory())
+                .category(batch.getMonthlyCategory())
                 .appraisalPeriod(batch.getAppraisalPeriod())
                 .status(batch.getStatus())
                 .metrics(metrics)

@@ -1,175 +1,291 @@
--- MySQL 8.0 数据库初始化脚本（持久化模式：不删除已有表与历史数据）
+-- MySQL 8.0 schema reference.
+-- The application applies versioned migrations from db/migration (Flyway).
+-- This file documents the final schema for local/manual inspection only.
 
--- 0. 创建并选用数据库
-CREATE DATABASE IF NOT EXISTS appraisal_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE appraisal_db;
-
--- 1. 用户与认证表
+-- 1. Authentication and organization
 CREATE TABLE IF NOT EXISTS sys_user (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '用户主键ID',
-    username VARCHAR(64) NOT NULL UNIQUE COMMENT '登录用户名',
-    password_hash VARCHAR(128) NOT NULL COMMENT '登录密码哈希 (SHA-256)',
-    real_name VARCHAR(64) NOT NULL COMMENT '真实姓名',
-    department VARCHAR(64) NOT NULL COMMENT '所属部门',
-    position VARCHAR(64) DEFAULT '' COMMENT '职务/岗位',
-    title VARCHAR(64) DEFAULT '' COMMENT '职务名称',
-    position_category VARCHAR(64) DEFAULT 'EMPLOYEE' COMMENT '岗位类别: PRIMARY_LEADER, CENTER_LEADER, DEPT_HEAD, DEPT_DEPUTY, EXPERT, EMPLOYEE',
-    supervisor_id BIGINT NULL COMMENT '分管领导用户ID',
-    supervisor_name VARCHAR(64) DEFAULT '' COMMENT '分管领导姓名',
-    dept_head_id BIGINT NULL COMMENT '直属部门正职领导ID',
-    dept_head_name VARCHAR(64) DEFAULT '' COMMENT '直属部门正职姓名',
-    email VARCHAR(128) DEFAULT '' COMMENT '邮箱',
-    phone VARCHAR(32) DEFAULT '' COMMENT '联系电话',
-    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 1-启用, 0-禁用',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统用户表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL UNIQUE,
+    password_hash VARCHAR(128) NOT NULL,
+    real_name VARCHAR(64) NOT NULL,
+    department VARCHAR(64) NOT NULL,
+    position VARCHAR(64) DEFAULT '',
+    title VARCHAR(64) DEFAULT '',
+    position_category VARCHAR(64) NOT NULL DEFAULT 'EMPLOYEE',
+    supervisor_id BIGINT NULL,
+    supervisor_name VARCHAR(64) DEFAULT '' COMMENT 'Snapshot; synchronized on save',
+    dept_head_id BIGINT NULL,
+    dept_head_name VARCHAR(64) DEFAULT '' COMMENT 'Snapshot; synchronized on save',
+    email VARCHAR(128) DEFAULT '',
+    phone VARCHAR(32) DEFAULT '',
+    status TINYINT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_sys_user_department (department),
+    KEY idx_sys_user_position_category (position_category),
+    KEY idx_sys_user_supervisor (supervisor_id),
+    KEY idx_sys_user_dept_head (dept_head_id),
+    KEY idx_sys_user_status (status),
+    CONSTRAINT chk_sys_user_position_category CHECK (position_category IN ('PRIMARY_LEADER', 'CENTER_LEADER', 'DEPT_HEAD', 'DEPT_DEPUTY', 'EXPERT', 'EMPLOYEE', '')),
+    CONSTRAINT fk_sys_user_supervisor FOREIGN KEY (supervisor_id) REFERENCES sys_user (id) ON DELETE SET NULL,
+    CONSTRAINT fk_sys_user_dept_head FOREIGN KEY (dept_head_id) REFERENCES sys_user (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='System user';
 
 CREATE TABLE IF NOT EXISTS sys_role (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '角色主键ID',
-    role_code VARCHAR(32) NOT NULL UNIQUE COMMENT '角色标识: SYS_ADMIN/ADMIN/LEADER/DEPT_HEAD/DEPT_DEPUTY/EXPERT/EMPLOYEE',
-    role_name VARCHAR(64) NOT NULL COMMENT '角色名称',
-    description VARCHAR(255) DEFAULT '' COMMENT '角色描述'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统角色表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    role_code VARCHAR(32) NOT NULL UNIQUE,
+    role_name VARCHAR(64) NOT NULL,
+    description VARCHAR(255) DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='System role';
 
 CREATE TABLE IF NOT EXISTS sys_user_role (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    user_id BIGINT NOT NULL COMMENT '用户ID',
-    role_id BIGINT NOT NULL COMMENT '角色ID',
-    UNIQUE KEY uk_user_role (user_id, role_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户角色关联表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    role_id BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_role (user_id, role_id),
+    KEY idx_user_role_role (role_id),
+    CONSTRAINT fk_user_role_user FOREIGN KEY (user_id) REFERENCES sys_user (id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_role_role FOREIGN KEY (role_id) REFERENCES sys_role (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='User-role relation';
 
--- 2. 考核批次表
+-- 2. Appraisal batch and metrics
 CREATE TABLE IF NOT EXISTS appraisal_batch (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '批次主键ID',
-    batch_name VARCHAR(128) NOT NULL COMMENT '批次名称',
-    batch_type VARCHAR(32) NOT NULL COMMENT '批次类型: MONTHLY (月度), TARGET_PROJECT (目标绩效任务), SPECIAL_INNOVATION (专项与创新任务), ANNUAL_PROJECT (原年度项目)',
-    category VARCHAR(32) DEFAULT '' COMMENT '评审类别: BUSINESS (业务类), MANAGEMENT (管理类), ALL',
-    appraisal_period VARCHAR(32) NOT NULL COMMENT '考核周期: 2026-10 或 2026',
-    start_time TIMESTAMP NULL COMMENT '评分开始时间',
-    end_time TIMESTAMP NULL COMMENT '评分截止时间',
-    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT' COMMENT '状态: DRAFT (草稿), IN_PROGRESS (进行中), COMPLETED (已归档)',
-    created_by BIGINT NULL COMMENT '创建人用户ID',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考核评审批次表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_name VARCHAR(128) NOT NULL,
+    batch_type VARCHAR(32) NOT NULL,
+    monthly_category VARCHAR(32) NOT NULL DEFAULT '' COMMENT 'Monthly only: DEPT_HEAD / DEPT_DEPUTY',
+    project_category VARCHAR(32) NOT NULL DEFAULT '' COMMENT 'Project only: BUSINESS / MANAGEMENT / ALL',
+    appraisal_period VARCHAR(32) NOT NULL,
+    start_time TIMESTAMP NULL,
+    end_time TIMESTAMP NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    created_by BIGINT NULL,
+    updated_by BIGINT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0,
+    deleted TINYINT NOT NULL DEFAULT 0,
+    KEY idx_batch_type_status (batch_type, status),
+    KEY idx_batch_period (appraisal_period),
+    KEY idx_batch_monthly_category (monthly_category),
+    KEY idx_batch_project_category (project_category),
+    KEY idx_batch_created_by (created_by),
+    CONSTRAINT chk_batch_type CHECK (batch_type IN ('MONTHLY', 'TARGET_PROJECT', 'SPECIAL_INNOVATION', 'ANNUAL_PROJECT')),
+    CONSTRAINT chk_batch_status CHECK (status IN ('DRAFT', 'IN_PROGRESS', 'COMPLETED')),
+    CONSTRAINT chk_batch_monthly_category CHECK (monthly_category IN ('', 'DEPT_HEAD', 'DEPT_DEPUTY')),
+    CONSTRAINT chk_batch_project_category CHECK (project_category IN ('', 'BUSINESS', 'MANAGEMENT', 'ALL')),
+    CONSTRAINT fk_batch_created_by FOREIGN KEY (created_by) REFERENCES sys_user (id) ON DELETE SET NULL,
+    CONSTRAINT fk_batch_updated_by FOREIGN KEY (updated_by) REFERENCES sys_user (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Appraisal batch';
 
--- 3. 考核指标表
 CREATE TABLE IF NOT EXISTS appraisal_metric (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '指标主键ID',
-    batch_id BIGINT NOT NULL COMMENT '所属批次ID',
-    metric_name VARCHAR(64) NOT NULL COMMENT '指标名称',
-    metric_desc VARCHAR(255) DEFAULT '' COMMENT '指标描述/评分标准',
-    max_score DECIMAL(10,4) NOT NULL DEFAULT 100.0000 COMMENT '指标满分分值',
-    weight DECIMAL(10,4) NOT NULL DEFAULT 20.0000 COMMENT '指标权重百分比 (累计必须为100)',
-    sort_order INT NOT NULL DEFAULT 1 COMMENT '排序号',
-    KEY idx_batch_id (batch_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考核指标项表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    metric_name VARCHAR(64) NOT NULL,
+    metric_desc VARCHAR(255) DEFAULT '',
+    max_score DECIMAL(10,4) NOT NULL DEFAULT 100.0000,
+    weight DECIMAL(10,4) NOT NULL DEFAULT 20.0000,
+    sort_order INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_batch_metric_name (batch_id, metric_name),
+    KEY idx_metric_batch_sort (batch_id, sort_order),
+    CONSTRAINT chk_metric_score CHECK (max_score >= 0 AND weight >= 0 AND weight <= 100),
+    CONSTRAINT fk_metric_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Appraisal metric';
 
--- 4. 月度绩效考核配置与打分表
+-- 3. Monthly appraisal
 CREATE TABLE IF NOT EXISTS monthly_role_weight (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    batch_id BIGINT NOT NULL COMMENT '批次ID',
-    role_category VARCHAR(32) NOT NULL COMMENT '角色分类: PRIMARY_LEADER, SUPERVISOR_LEADER, OTHER_LEADER, DEPT_HEAD, PEER_HEAD, PEER_DEPUTY',
-    role_name VARCHAR(64) NOT NULL COMMENT '角色名称',
-    weight DECIMAL(10,4) NOT NULL DEFAULT 25.0000 COMMENT '角色权重百分比',
-    sort_order INT NOT NULL DEFAULT 1 COMMENT '排序序号',
-    UNIQUE KEY uk_batch_role_category (batch_id, role_category)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='月度考核角色类别权重配置表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    role_category VARCHAR(32) NOT NULL,
+    role_name VARCHAR(64) NOT NULL,
+    weight DECIMAL(10,4) NOT NULL DEFAULT 25.0000,
+    sort_order INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_batch_role_category (batch_id, role_category),
+    KEY idx_monthly_role_category (role_category),
+    CONSTRAINT chk_monthly_role_category CHECK (role_category IN ('PRIMARY_LEADER', 'SUPERVISOR_LEADER', 'OTHER_LEADER', 'DEPT_HEAD', 'PEER_HEAD', 'PEER_DEPUTY')),
+    CONSTRAINT chk_monthly_role_weight CHECK (weight >= 0 AND weight <= 100),
+    CONSTRAINT fk_monthly_role_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Monthly role weight';
 
 CREATE TABLE IF NOT EXISTS monthly_evaluator (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    batch_id BIGINT NOT NULL COMMENT '批次ID',
-    leader_user_id BIGINT NOT NULL COMMENT '中心领导用户ID',
-    weight DECIMAL(10,4) NOT NULL DEFAULT 50.0000 COMMENT '该领导打分权重百分比',
-    UNIQUE KEY uk_batch_leader (batch_id, leader_user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='月度考核评分领导配置表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    leader_user_id BIGINT NOT NULL COMMENT 'Evaluator user id; kept for backward compatibility',
+    weight DECIMAL(10,4) NOT NULL DEFAULT 50.0000,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_batch_leader (batch_id, leader_user_id),
+    KEY idx_monthly_evaluator_user (leader_user_id),
+    CONSTRAINT chk_monthly_evaluator_weight CHECK (weight >= 0 AND weight <= 100),
+    CONSTRAINT fk_monthly_evaluator_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE,
+    CONSTRAINT fk_monthly_evaluator_user FOREIGN KEY (leader_user_id) REFERENCES sys_user (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Monthly evaluator';
 
 CREATE TABLE IF NOT EXISTS monthly_examinee (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    batch_id BIGINT NOT NULL COMMENT '批次ID',
-    examinee_user_id BIGINT NOT NULL COMMENT '被考核人员用户ID',
-    department VARCHAR(64) DEFAULT '' COMMENT '所属部门',
-    position VARCHAR(64) DEFAULT '' COMMENT '职务',
-    UNIQUE KEY uk_batch_examinee (batch_id, examinee_user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='月度被考核对象配置表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    examinee_user_id BIGINT NOT NULL,
+    department VARCHAR(64) DEFAULT '',
+    position VARCHAR(64) DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_batch_examinee (batch_id, examinee_user_id),
+    KEY idx_monthly_examinee_user (examinee_user_id),
+    CONSTRAINT fk_monthly_examinee_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE,
+    CONSTRAINT fk_monthly_examinee_user FOREIGN KEY (examinee_user_id) REFERENCES sys_user (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Monthly examinee';
 
 CREATE TABLE IF NOT EXISTS monthly_score_record (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '评分记录ID',
-    batch_id BIGINT NOT NULL COMMENT '批次ID',
-    leader_user_id BIGINT NOT NULL COMMENT '打分人ID',
-    examinee_user_id BIGINT NOT NULL COMMENT '被考核人员ID',
-    evaluator_role_type VARCHAR(32) DEFAULT '' COMMENT '评价人当时角色类型: PRIMARY_LEADER, SUPERVISING_LEADER, OTHER_LEADER, DEPT_HEAD, PEER_HEAD, PEER_DEPUTY',
-    total_score DECIMAL(10,4) DEFAULT 0.0000 COMMENT '加权总分 (保留4位小数)',
-    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT' COMMENT '状态: DRAFT (暂存草稿), SUBMITTED (正式提交)',
-    submitted_at TIMESTAMP NULL COMMENT '提交时间',
-    UNIQUE KEY uk_batch_leader_examinee (batch_id, leader_user_id, examinee_user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='月度评分记录表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    leader_user_id BIGINT NOT NULL COMMENT 'Evaluator user id; kept for backward compatibility',
+    examinee_user_id BIGINT NOT NULL,
+    evaluator_role_type VARCHAR(32) NOT NULL DEFAULT '',
+    total_score DECIMAL(10,4) NOT NULL DEFAULT 0.0000,
+    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    submitted_at TIMESTAMP NULL,
+    created_by BIGINT NULL,
+    updated_by BIGINT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_batch_leader_examinee (batch_id, leader_user_id, examinee_user_id),
+    KEY idx_monthly_record_examinee (batch_id, examinee_user_id),
+    KEY idx_monthly_record_evaluator (batch_id, leader_user_id),
+    KEY idx_monthly_record_status (batch_id, status),
+    CONSTRAINT chk_monthly_record_role CHECK (evaluator_role_type IN ('', 'PRIMARY_LEADER', 'CENTER_LEADER', 'DEPT_HEAD', 'DEPT_DEPUTY', 'EXPERT', 'SUPERVISOR_LEADER', 'OTHER_LEADER', 'PEER_HEAD', 'PEER_DEPUTY', 'DEPT_HEAD_PEER', 'DEPT_DEPUTY_PEER')),
+    CONSTRAINT chk_monthly_record_status CHECK (status IN ('DRAFT', 'SUBMITTED')),
+    CONSTRAINT chk_monthly_record_score CHECK (total_score >= 0),
+    CONSTRAINT fk_monthly_record_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE,
+    CONSTRAINT fk_monthly_record_evaluator FOREIGN KEY (leader_user_id) REFERENCES sys_user (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_monthly_record_examinee FOREIGN KEY (examinee_user_id) REFERENCES sys_user (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_monthly_record_created_by FOREIGN KEY (created_by) REFERENCES sys_user (id) ON DELETE SET NULL,
+    CONSTRAINT fk_monthly_record_updated_by FOREIGN KEY (updated_by) REFERENCES sys_user (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Monthly score record';
 
 CREATE TABLE IF NOT EXISTS monthly_score_detail (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '明细主键ID',
-    record_id BIGINT NOT NULL COMMENT '评分主记录ID',
-    metric_id BIGINT NOT NULL COMMENT '指标ID',
-    score DECIMAL(10,4) NOT NULL DEFAULT 0.0000 COMMENT '单项指标得分 (保留4位小数)',
-    UNIQUE KEY uk_record_metric (record_id, metric_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='月度单项指标评分明细表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    record_id BIGINT NOT NULL,
+    metric_id BIGINT NOT NULL,
+    score DECIMAL(10,4) NOT NULL DEFAULT 0.0000,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_record_metric (record_id, metric_id),
+    KEY idx_monthly_detail_metric (metric_id),
+    CONSTRAINT chk_monthly_detail_score CHECK (score >= 0),
+    CONSTRAINT fk_monthly_detail_record FOREIGN KEY (record_id) REFERENCES monthly_score_record (id) ON DELETE CASCADE,
+    CONSTRAINT fk_monthly_detail_metric FOREIGN KEY (metric_id) REFERENCES appraisal_metric (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Monthly score detail';
 
--- 5. 目标绩效任务与专项创新任务评审配置与打分表
+-- 4. Project appraisal
 CREATE TABLE IF NOT EXISTS project_item (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '项目主键ID',
-    batch_id BIGINT NOT NULL COMMENT '所属评审批次ID',
-    project_code VARCHAR(64) NOT NULL COMMENT '项目序号/编号',
-    project_name VARCHAR(128) NOT NULL COMMENT '项目名称',
-    owner_name VARCHAR(64) NOT NULL COMMENT '项目负责人姓名',
-    category VARCHAR(32) DEFAULT '' COMMENT '申报类别: BUSINESS (业务类), MANAGEMENT (管理类)',
-    department VARCHAR(64) DEFAULT '' COMMENT '申报部门',
-    supervisor_id BIGINT DEFAULT NULL COMMENT '分管领导用户ID',
-    score_coefficient DECIMAL(10,4) DEFAULT NULL COMMENT '目标绩效任务得分系数',
-    bonus_amount DECIMAL(12,4) DEFAULT NULL COMMENT '核定奖励金额 (万元)',
-    rank_num INT DEFAULT NULL COMMENT '排名序号',
-    material_pdf_name VARCHAR(255) DEFAULT '' COMMENT '申报材料原始文件名',
-    material_pdf_path VARCHAR(255) DEFAULT '' COMMENT '申报材料物理文件存储路径',
-    attachment_pdf_name VARCHAR(255) DEFAULT '' COMMENT '附件材料原始文件名',
-    attachment_pdf_path VARCHAR(255) DEFAULT '' COMMENT '附件材料物理文件存储路径',
-    sort_order INT NOT NULL DEFAULT 1 COMMENT '排序序号',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '录入时间',
-    KEY idx_proj_batch (batch_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='参评项目表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    project_code VARCHAR(64) NOT NULL,
+    project_name VARCHAR(128) NOT NULL,
+    owner_user_id BIGINT NULL,
+    owner_name VARCHAR(64) NOT NULL COMMENT 'Snapshot of owner name',
+    category VARCHAR(32) NOT NULL DEFAULT '',
+    department VARCHAR(64) DEFAULT '',
+    supervisor_id BIGINT NULL,
+    material_pdf_name VARCHAR(255) DEFAULT '',
+    material_pdf_path VARCHAR(255) DEFAULT '',
+    attachment_pdf_name VARCHAR(255) DEFAULT '',
+    attachment_pdf_path VARCHAR(255) DEFAULT '',
+    sort_order INT NOT NULL DEFAULT 1,
+    created_by BIGINT NULL,
+    updated_by BIGINT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0,
+    deleted TINYINT NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_batch_project_code (batch_id, project_code),
+    KEY idx_project_batch_category (batch_id, category),
+    KEY idx_project_owner (owner_user_id),
+    KEY idx_project_supervisor (supervisor_id),
+    CONSTRAINT chk_project_item_category CHECK (category IN ('', 'BUSINESS', 'MANAGEMENT')),
+    CONSTRAINT fk_project_item_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE,
+    CONSTRAINT fk_project_item_owner FOREIGN KEY (owner_user_id) REFERENCES sys_user (id) ON DELETE SET NULL,
+    CONSTRAINT fk_project_item_supervisor FOREIGN KEY (supervisor_id) REFERENCES sys_user (id) ON DELETE SET NULL,
+    CONSTRAINT fk_project_item_created_by FOREIGN KEY (created_by) REFERENCES sys_user (id) ON DELETE SET NULL,
+    CONSTRAINT fk_project_item_updated_by FOREIGN KEY (updated_by) REFERENCES sys_user (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Project item';
 
 CREATE TABLE IF NOT EXISTS project_role_weight (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    batch_id BIGINT NOT NULL COMMENT '批次ID',
-    role_category VARCHAR(32) NOT NULL COMMENT '角色分类: CENTER_LEADER_TOTAL, PRIMARY_LEADER, SUPERVISOR_LEADER, OTHER_LEADER, DEPT_HEAD, EXPERT',
-    role_name VARCHAR(64) NOT NULL COMMENT '角色名称',
-    weight DECIMAL(10,4) NOT NULL DEFAULT 10.0000 COMMENT '角色权重百分比',
-    sort_order INT NOT NULL DEFAULT 1 COMMENT '排序序号',
-    UNIQUE KEY uk_proj_batch_role_category (batch_id, role_category)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='项目评审角色类别权重配置表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    role_category VARCHAR(32) NOT NULL,
+    role_name VARCHAR(64) NOT NULL,
+    weight DECIMAL(10,4) NOT NULL DEFAULT 10.0000,
+    sort_order INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_proj_batch_role_category (batch_id, role_category),
+    KEY idx_project_role_category (role_category),
+    CONSTRAINT chk_project_role_category CHECK (role_category IN ('CENTER_LEADER_TOTAL', 'PRIMARY_LEADER', 'SUPERVISOR_LEADER', 'OTHER_LEADER', 'DEPT_HEAD', 'EXPERT')),
+    CONSTRAINT chk_project_role_weight CHECK (weight >= 0 AND weight <= 100),
+    CONSTRAINT fk_project_role_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Project role weight';
 
 CREATE TABLE IF NOT EXISTS project_expert (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    batch_id BIGINT NOT NULL COMMENT '评审批次ID',
-    expert_user_id BIGINT NOT NULL COMMENT '评审专家用户ID',
-    weight DECIMAL(10,4) NOT NULL DEFAULT 100.0000 COMMENT '专家打分权重百分比',
-    UNIQUE KEY uk_batch_expert (batch_id, expert_user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评审专家/领导配置表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    expert_user_id BIGINT NOT NULL COMMENT 'Evaluator user id; kept for backward compatibility',
+    weight DECIMAL(10,4) NOT NULL DEFAULT 100.0000,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_batch_expert (batch_id, expert_user_id),
+    KEY idx_project_expert_user (expert_user_id),
+    CONSTRAINT chk_project_expert_weight CHECK (weight >= 0 AND weight <= 100),
+    CONSTRAINT fk_project_expert_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE,
+    CONSTRAINT fk_project_expert_user FOREIGN KEY (expert_user_id) REFERENCES sys_user (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Project evaluator';
 
 CREATE TABLE IF NOT EXISTS project_score_record (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '评审评分记录ID',
-    batch_id BIGINT NOT NULL COMMENT '批次ID',
-    expert_user_id BIGINT NOT NULL COMMENT '打分人ID',
-    project_id BIGINT NOT NULL COMMENT '参评项目ID',
-    evaluator_role_type VARCHAR(32) DEFAULT '' COMMENT '打分角色分类: PRIMARY_LEADER, SUPERVISING_LEADER, OTHER_LEADER, DEPT_HEAD, EXPERT',
-    total_score DECIMAL(10,4) DEFAULT 0.0000 COMMENT '总评分 (保留4位小数)',
-    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT' COMMENT '状态: DRAFT (暂存草稿), SUBMITTED (正式提交)',
-    submitted_at TIMESTAMP NULL COMMENT '提交时间',
-    UNIQUE KEY uk_batch_expert_project (batch_id, expert_user_id, project_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='项目评审打分记录表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id BIGINT NOT NULL,
+    expert_user_id BIGINT NOT NULL COMMENT 'Evaluator user id; kept for backward compatibility',
+    project_id BIGINT NOT NULL,
+    evaluator_role_type VARCHAR(32) NOT NULL DEFAULT '',
+    total_score DECIMAL(10,4) NOT NULL DEFAULT 0.0000,
+    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+    submitted_at TIMESTAMP NULL,
+    created_by BIGINT NULL,
+    updated_by BIGINT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_batch_expert_project (batch_id, expert_user_id, project_id),
+    KEY idx_project_record_project (batch_id, project_id),
+    KEY idx_project_record_evaluator (batch_id, expert_user_id),
+    KEY idx_project_record_status (batch_id, status),
+    CONSTRAINT chk_project_record_role CHECK (evaluator_role_type IN ('', 'PRIMARY_LEADER', 'CENTER_LEADER', 'DEPT_HEAD', 'DEPT_DEPUTY', 'EXPERT', 'SUPERVISOR_LEADER', 'OTHER_LEADER', 'PEER_HEAD', 'PEER_DEPUTY', 'DEPT_HEAD_PEER', 'DEPT_DEPUTY_PEER')),
+    CONSTRAINT chk_project_record_status CHECK (status IN ('DRAFT', 'SUBMITTED')),
+    CONSTRAINT chk_project_record_score CHECK (total_score >= 0),
+    CONSTRAINT fk_project_record_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE,
+    CONSTRAINT fk_project_record_evaluator FOREIGN KEY (expert_user_id) REFERENCES sys_user (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_project_record_project FOREIGN KEY (project_id) REFERENCES project_item (id) ON DELETE CASCADE,
+    CONSTRAINT fk_project_record_created_by FOREIGN KEY (created_by) REFERENCES sys_user (id) ON DELETE SET NULL,
+    CONSTRAINT fk_project_record_updated_by FOREIGN KEY (updated_by) REFERENCES sys_user (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Project score record';
 
 CREATE TABLE IF NOT EXISTS project_score_detail (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '明细主键ID',
-    record_id BIGINT NOT NULL COMMENT '打分主记录ID',
-    metric_id BIGINT NOT NULL COMMENT '指标ID',
-    score DECIMAL(10,4) NOT NULL DEFAULT 0.0000 COMMENT '单项指标得分 (保留4位小数)',
-    UNIQUE KEY uk_proj_record_metric (record_id, metric_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='项目单项指标评分明细表';
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    record_id BIGINT NOT NULL,
+    metric_id BIGINT NOT NULL,
+    score DECIMAL(10,4) NOT NULL DEFAULT 0.0000,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_proj_record_metric (record_id, metric_id),
+    KEY idx_project_detail_metric (metric_id),
+    CONSTRAINT chk_project_detail_score CHECK (score >= 0),
+    CONSTRAINT fk_project_detail_record FOREIGN KEY (record_id) REFERENCES project_score_record (id) ON DELETE CASCADE,
+    CONSTRAINT fk_project_detail_metric FOREIGN KEY (metric_id) REFERENCES appraisal_metric (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Project score detail';

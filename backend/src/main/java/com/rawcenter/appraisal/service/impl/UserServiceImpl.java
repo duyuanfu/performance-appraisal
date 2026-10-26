@@ -7,9 +7,19 @@ import com.rawcenter.appraisal.common.PasswordUtils;
 import com.rawcenter.appraisal.common.UserContext;
 import com.rawcenter.appraisal.dto.LoginRequest;
 import com.rawcenter.appraisal.dto.UserSaveDTO;
+import com.rawcenter.appraisal.entity.MonthlyEvaluator;
+import com.rawcenter.appraisal.entity.MonthlyExaminee;
+import com.rawcenter.appraisal.entity.MonthlyScoreRecord;
+import com.rawcenter.appraisal.entity.ProjectExpert;
+import com.rawcenter.appraisal.entity.ProjectScoreRecord;
 import com.rawcenter.appraisal.entity.SysRole;
 import com.rawcenter.appraisal.entity.SysUser;
 import com.rawcenter.appraisal.entity.SysUserRole;
+import com.rawcenter.appraisal.mapper.MonthlyEvaluatorMapper;
+import com.rawcenter.appraisal.mapper.MonthlyExamineeMapper;
+import com.rawcenter.appraisal.mapper.MonthlyScoreRecordMapper;
+import com.rawcenter.appraisal.mapper.ProjectExpertMapper;
+import com.rawcenter.appraisal.mapper.ProjectScoreRecordMapper;
 import com.rawcenter.appraisal.mapper.SysRoleMapper;
 import com.rawcenter.appraisal.mapper.SysUserMapper;
 import com.rawcenter.appraisal.mapper.SysUserRoleMapper;
@@ -34,6 +44,11 @@ public class UserServiceImpl implements UserService {
     private final SysUserMapper userMapper;
     private final SysRoleMapper roleMapper;
     private final SysUserRoleMapper userRoleMapper;
+    private final MonthlyEvaluatorMapper monthlyEvaluatorMapper;
+    private final MonthlyExamineeMapper monthlyExamineeMapper;
+    private final MonthlyScoreRecordMapper monthlyScoreRecordMapper;
+    private final ProjectExpertMapper projectExpertMapper;
+    private final ProjectScoreRecordMapper projectScoreRecordMapper;
     private final JwtUtils jwtUtils;
 
     @Override
@@ -235,6 +250,21 @@ public class UserServiceImpl implements UserService {
         }
         if ("sys_admin".equalsIgnoreCase(user.getUsername()) || "admin".equalsIgnoreCase(user.getUsername())) {
             throw new BusinessException(400, "系统预置核心管理员账号不可删除");
+        }
+        Long businessReferences = monthlyEvaluatorMapper.selectCount(
+                        new LambdaQueryWrapper<MonthlyEvaluator>().eq(MonthlyEvaluator::getLeaderUserId, id))
+                + monthlyExamineeMapper.selectCount(
+                        new LambdaQueryWrapper<MonthlyExaminee>().eq(MonthlyExaminee::getExamineeUserId, id))
+                + monthlyScoreRecordMapper.selectCount(
+                        new LambdaQueryWrapper<MonthlyScoreRecord>()
+                                .and(w -> w.eq(MonthlyScoreRecord::getLeaderUserId, id)
+                                        .or().eq(MonthlyScoreRecord::getExamineeUserId, id)))
+                + projectExpertMapper.selectCount(
+                        new LambdaQueryWrapper<ProjectExpert>().eq(ProjectExpert::getExpertUserId, id))
+                + projectScoreRecordMapper.selectCount(
+                        new LambdaQueryWrapper<ProjectScoreRecord>().eq(ProjectScoreRecord::getExpertUserId, id));
+        if (businessReferences > 0) {
+            throw new BusinessException(409, "该用户已被考核业务引用，无法删除；请改为停用账号");
         }
         userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, id));
         userMapper.deleteById(id);

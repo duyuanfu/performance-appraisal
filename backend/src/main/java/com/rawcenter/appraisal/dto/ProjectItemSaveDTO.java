@@ -20,6 +20,7 @@ public class ProjectItemSaveDTO {
     @NotBlank(message = "项目负责人不能为空")
     private String ownerName;
 
+    private Long ownerUserId;
     private String category; // BUSINESS, MANAGEMENT
     private String department; // 申报部门
     private Long supervisorId; // 分管领导用户ID

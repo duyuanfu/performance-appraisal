@@ -54,20 +54,19 @@ export interface ProjectItemVO {
   batchId: number;
   projectCode: string;
   projectName: string;
+  ownerUserId?: number;
   ownerName: string;
   category?: string;
   department?: string;
   supervisorId?: number;
   supervisorName?: string;
-  scoreCoefficient?: number;
-  bonusAmount?: number;
-  rankNum?: number;
   materialPdfName?: string;
   hasMaterial: boolean;
   attachmentPdfName?: string;
   hasAttachment: boolean;
   sortOrder: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface ProjectItemSaveDTO {
@@ -75,6 +74,7 @@ export interface ProjectItemSaveDTO {
   batchId: number;
   projectCode: string;
   projectName: string;
+  ownerUserId?: number;
   ownerName: string;
   category?: string;
   department?: string;

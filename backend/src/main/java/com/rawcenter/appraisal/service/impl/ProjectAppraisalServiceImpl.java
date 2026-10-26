@@ -85,6 +85,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         List<AppraisalBatch> batches = batchMapper.selectList(wrapper);
 
         for (AppraisalBatch b : batches) {
+            b.setCategory(b.getProjectCategory());
             List<com.rawcenter.appraisal.vo.EvaluatorProgressVO> progressList = getExpertProgress(b.getId());
             int totalEvaluators = progressList.size();
             int submittedEvaluators = (int) progressList.stream().filter(p -> "SUBMITTED".equals(p.getStatus())).count();
@@ -133,6 +134,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .eq(ProjectRoleWeight::getBatchId, batchId)
                 .orderByAsc(ProjectRoleWeight::getSortOrder));
         batch.setRoleWeights(savedRoleWeights);
+        batch.setCategory(batch.getProjectCategory());
         return batch;
     }
 
@@ -184,7 +186,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             batch = AppraisalBatch.builder()
                     .batchName(dto.getBatchName())
                     .batchType(batchType)
-                    .category(dto.getCategory() != null ? dto.getCategory() : "")
+                    .projectCategory(dto.getCategory() != null ? dto.getCategory() : "")
                     .appraisalPeriod(dto.getAppraisalPeriod())
                     .startTime(dto.getStartTime())
                     .endTime(dto.getEndTime())
@@ -204,7 +206,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 batch.setBatchType(dto.getBatchType());
             }
             if (dto.getCategory() != null) {
-                batch.setCategory(dto.getCategory());
+                batch.setProjectCategory(dto.getCategory());
             }
             batch.setAppraisalPeriod(dto.getAppraisalPeriod());
             batch.setStartTime(dto.getStartTime() != null ? dto.getStartTime() : LocalDateTime.now());
@@ -212,7 +214,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             // 重新发起时将状态置为进行中，允许专家继续打分
             batch.setStatus("IN_PROGRESS");
             batch.setUpdatedAt(LocalDateTime.now());
-            batchMapper.updateById(batch);
+            batch.setUpdatedBy(UserContext.getUserId());
+            if (batchMapper.updateById(batch) == 0) {
+                throw new BusinessException(409, "该批次已被其他用户修改，请刷新后重试");
+            }
         }
 
         Long batchId = batch.getId();
@@ -301,7 +306,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             batch.setStartTime(LocalDateTime.now());
         }
         batch.setUpdatedAt(LocalDateTime.now());
-        batchMapper.updateById(batch);
+        batch.setUpdatedBy(UserContext.getUserId());
+        if (batchMapper.updateById(batch) == 0) {
+            throw new BusinessException(409, "该批次已被其他用户修改，请刷新后重试");
+        }
     }
 
     @Override
@@ -312,7 +320,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         }
         batch.setStatus("COMPLETED");
         batch.setUpdatedAt(LocalDateTime.now());
-        batchMapper.updateById(batch);
+        batch.setUpdatedBy(UserContext.getUserId());
+        if (batchMapper.updateById(batch) == 0) {
+            throw new BusinessException(409, "该批次已被其他用户修改，请刷新后重试");
+        }
     }
 
     @Override
@@ -338,20 +349,19 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .batchId(item.getBatchId())
                     .projectCode(item.getProjectCode())
                     .projectName(item.getProjectName())
+                    .ownerUserId(item.getOwnerUserId())
                     .ownerName(item.getOwnerName())
                     .category(item.getCategory())
                     .department(item.getDepartment())
                     .supervisorId(item.getSupervisorId())
                     .supervisorName(supervisor != null ? supervisor.getRealName() : "")
-                    .scoreCoefficient(item.getScoreCoefficient())
-                    .bonusAmount(item.getBonusAmount())
-                    .rankNum(item.getRankNum())
                     .materialPdfName(item.getMaterialPdfName())
                     .hasMaterial(StringUtils.hasText(item.getMaterialPdfPath()))
                     .attachmentPdfName(item.getAttachmentPdfName())
                     .hasAttachment(StringUtils.hasText(item.getAttachmentPdfPath()))
                     .sortOrder(item.getSortOrder())
                     .createdAt(item.getCreatedAt())
+                    .updatedAt(item.getUpdatedAt())
                     .build();
         }).collect(Collectors.toList());
     }
@@ -383,11 +393,14 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .batchId(dto.getBatchId())
                     .projectCode(dto.getProjectCode())
                     .projectName(dto.getProjectName())
+                    .ownerUserId(dto.getOwnerUserId())
                     .ownerName(dto.getOwnerName())
                     .category(dto.getCategory() != null ? dto.getCategory() : "")
                     .department(dto.getDepartment() != null ? dto.getDepartment() : "")
                     .supervisorId(dto.getSupervisorId())
                     .sortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 1)
+                    .createdBy(UserContext.getUserId())
+                    .updatedBy(UserContext.getUserId())
                     .materialPdfName("")
                     .materialPdfPath("")
                     .attachmentPdfName("")
@@ -402,6 +415,9 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             }
             item.setProjectCode(dto.getProjectCode());
             item.setProjectName(dto.getProjectName());
+            if (dto.getOwnerUserId() != null) {
+                item.setOwnerUserId(dto.getOwnerUserId());
+            }
             item.setOwnerName(dto.getOwnerName());
             if (dto.getCategory() != null) {
                 item.setCategory(dto.getCategory());
@@ -413,7 +429,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             if (dto.getSortOrder() != null) {
                 item.setSortOrder(dto.getSortOrder());
             }
-            projectItemMapper.updateById(item);
+            item.setUpdatedBy(UserContext.getUserId());
+            if (projectItemMapper.updateById(item) == 0) {
+                throw new BusinessException(409, "该项目已被其他用户修改，请刷新后重试");
+            }
         }
     }
 
@@ -432,6 +451,13 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             scoreRecordMapper.deleteById(r.getId());
         }
 
+        // Soft delete keeps the row for audit; rename the unique code so the
+        // same project code can be used again in this batch.
+        item.setProjectCode("__deleted_" + id);
+        item.setUpdatedBy(UserContext.getUserId());
+        if (projectItemMapper.updateById(item) == 0) {
+            throw new BusinessException(409, "该项目已被其他用户修改，请刷新后重试");
+        }
         projectItemMapper.deleteById(id);
     }
 
@@ -469,7 +495,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             item.setAttachmentPdfName(originalFilename);
             item.setAttachmentPdfPath(targetFile.getAbsolutePath());
         }
-        projectItemMapper.updateById(item);
+        item.setUpdatedBy(UserContext.getUserId());
+        if (projectItemMapper.updateById(item) == 0) {
+            throw new BusinessException(409, "该项目已被其他用户修改，请刷新后重试");
+        }
     }
 
     @Override
@@ -819,6 +848,8 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                         .totalScore(totalScore)
                         .status(isSubmit ? "SUBMITTED" : "DRAFT")
                         .submittedAt(isSubmit ? LocalDateTime.now() : null)
+                        .createdBy(expertUserId)
+                        .updatedBy(expertUserId)
                         .build();
                 scoreRecordMapper.insert(record);
             } else {
@@ -826,7 +857,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 record.setEvaluatorRoleType(evRoleType);
                 record.setStatus(isSubmit ? "SUBMITTED" : "DRAFT");
                 record.setSubmittedAt(isSubmit ? LocalDateTime.now() : null);
-                scoreRecordMapper.updateById(record);
+                record.setUpdatedBy(expertUserId);
+                if (scoreRecordMapper.updateById(record) == 0) {
+                    throw new BusinessException(409, "该评分记录已被其他用户修改，请刷新后重试");
+                }
             }
 
             scoreDetailMapper.delete(new LambdaQueryWrapper<ProjectScoreDetail>()
@@ -874,7 +908,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
 
         for (ProjectScoreRecord r : records) {
             r.setStatus("DRAFT");
-            scoreRecordMapper.updateById(r);
+            r.setUpdatedBy(expertUserId);
+            if (scoreRecordMapper.updateById(r) == 0) {
+                throw new BusinessException(409, "该评分记录已被其他用户修改，请刷新后重试");
+            }
         }
     }
 

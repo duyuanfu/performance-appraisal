@@ -4,8 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.rawcenter.appraisal.common.BusinessException;
 import com.rawcenter.appraisal.config.DefaultMetricsProperties;
 import com.rawcenter.appraisal.dto.MetricDTO;
+import com.rawcenter.appraisal.entity.AppraisalBatch;
 import com.rawcenter.appraisal.entity.AppraisalMetric;
+import com.rawcenter.appraisal.entity.MonthlyScoreRecord;
+import com.rawcenter.appraisal.entity.ProjectScoreRecord;
+import com.rawcenter.appraisal.mapper.AppraisalBatchMapper;
 import com.rawcenter.appraisal.mapper.AppraisalMetricMapper;
+import com.rawcenter.appraisal.mapper.MonthlyScoreRecordMapper;
+import com.rawcenter.appraisal.mapper.ProjectScoreRecordMapper;
 import com.rawcenter.appraisal.service.MetricService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +28,9 @@ import java.util.stream.Collectors;
 public class MetricServiceImpl implements MetricService {
 
     private final AppraisalMetricMapper metricMapper;
+    private final AppraisalBatchMapper batchMapper;
+    private final MonthlyScoreRecordMapper monthlyScoreRecordMapper;
+    private final ProjectScoreRecordMapper projectScoreRecordMapper;
     private final DefaultMetricsProperties defaultMetricsProperties;
 
     @Override
@@ -51,6 +60,19 @@ public class MetricServiceImpl implements MetricService {
         BigDecimal diff = totalWeight.subtract(new BigDecimal("100.0000")).abs();
         if (diff.compareTo(new BigDecimal("0.0001")) > 0) {
             throw new BusinessException(400, "所有指标权重之和必须等于100分，当前合计为：" + totalWeight.stripTrailingZeros().toPlainString() + "分");
+        }
+
+        AppraisalBatch batch = batchMapper.selectById(batchId);
+        if (batch == null) {
+            throw new BusinessException(404, "批次不存在");
+        }
+
+        Long monthlyScoreCount = monthlyScoreRecordMapper.selectCount(
+                new LambdaQueryWrapper<MonthlyScoreRecord>().eq(MonthlyScoreRecord::getBatchId, batchId));
+        Long projectScoreCount = projectScoreRecordMapper.selectCount(
+                new LambdaQueryWrapper<ProjectScoreRecord>().eq(ProjectScoreRecord::getBatchId, batchId));
+        if (monthlyScoreCount > 0 || projectScoreCount > 0) {
+            throw new BusinessException(409, "该批次已存在评分记录，不能修改考核指标；请先清理评分数据或新建批次");
         }
 
         // Clean existing metrics for this batch
