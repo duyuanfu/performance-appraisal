@@ -88,23 +88,16 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
       fixed: 'left' as const,
     },
     {
-      title: '分管领导',
-      dataIndex: 'supervisorName',
-      key: 'supervisorName',
-      width: 130,
+      title: '部门名称',
+      dataIndex: 'department',
+      key: 'department',
+      width: 150,
       render: (name: string) => name || '-',
     },
     {
       title: '中心主要领导评分',
       dataIndex: 'primaryLeaderScore',
       key: 'primaryLeaderScore',
-      width: 130,
-      render: (s: number) => renderScore(s),
-    },
-    {
-      title: '分管领导评分',
-      dataIndex: 'supervisorLeaderScore',
-      key: 'supervisorLeaderScore',
       width: 130,
       render: (s: number) => renderScore(s),
     },
@@ -261,8 +254,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
         title={`评分明细 - ${detailRow?.projectName || ''}`}
         subtitle={
           <Text type="secondary">
-            项目编号：{detailRow?.projectCode || '-'} · 负责人：{detailRow?.ownerName || '-'} · 分管领导：
-            {detailRow?.supervisorName || '-'}
+            项目编号：{detailRow?.projectCode || '-'} · 部门名称：{detailRow?.department || '-'}
           </Text>
         }
         metrics={data?.metrics || []}
@@ -270,9 +262,8 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
         summaryItems={
           detailRow
             ? [
-                { label: '分管领导', value: detailRow.supervisorName || '-' },
+                { label: '部门名称', value: detailRow.department || '-' },
                 { label: '中心主要领导评分', value: renderScore(detailRow.primaryLeaderScore) },
-                { label: '分管领导评分', value: renderScore(detailRow.supervisorLeaderScore) },
                 { label: '其它中心领导评分', value: renderScore(detailRow.otherLeaderScore) },
                 { label: '正职评分', value: renderScore(detailRow.headScore) },
                 { label: '代表评分', value: renderScore(detailRow.expertScore) },

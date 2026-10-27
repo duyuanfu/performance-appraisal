@@ -17,12 +17,8 @@ public class ProjectItemVO {
     private Long batchId;
     private String projectCode;
     private String projectName;
-    private Long ownerUserId;
-    private String ownerName;
     private String category;
     private String department;
-    private Long supervisorId;
-    private String supervisorName;
     private String materialPdfName;
     private Boolean hasMaterial;
     private String attachmentPdfName;

@@ -218,11 +218,6 @@ export const MainLayout: React.FC = () => {
             icon: <ProjectOutlined />,
             label: reviewMenuLabel('项目评审打分工作台', pendingReviewCounts.project),
           },
-          {
-            key: '/my-performance',
-            icon: <TrophyOutlined />,
-            label: '我的月度考核结果',
-          },
         ];
       case 'DEPT_DEPUTY':
         return [
@@ -231,11 +226,6 @@ export const MainLayout: React.FC = () => {
             icon: <CheckCircleOutlined />,
             label: reviewMenuLabel('部门副职月度考评互评', pendingReviewCounts.monthly),
           },
-          {
-            key: '/my-performance',
-            icon: <TrophyOutlined />,
-            label: '我的月度考核结果',
-          },
         ];
       case 'EXPERT':
         return [
@@ -243,14 +233,6 @@ export const MainLayout: React.FC = () => {
             key: '/expert-evaluation',
             icon: <ProjectOutlined />,
             label: reviewMenuLabel('项目在线评审工作台', pendingReviewCounts.project),
-          },
-        ];
-      case 'EMPLOYEE':
-        return [
-          {
-            key: '/my-performance',
-            icon: <TrophyOutlined />,
-            label: '我的月度考核与排名',
           },
         ];
       default:
@@ -276,7 +258,7 @@ export const MainLayout: React.FC = () => {
       else if (r.roleCode === 'DEPT_HEAD') navigate('/leader-scoring');
       else if (r.roleCode === 'DEPT_DEPUTY') navigate('/leader-scoring');
       else if (r.roleCode === 'EXPERT') navigate('/expert-evaluation');
-      else if (r.roleCode === 'EMPLOYEE') navigate('/my-performance');
+      else if (r.roleCode === 'EMPLOYEE') navigate('/');
     },
   }));
 

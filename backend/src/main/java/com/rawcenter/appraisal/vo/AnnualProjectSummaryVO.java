@@ -46,13 +46,9 @@ public class AnnualProjectSummaryVO {
         private Long projectId;
         private String projectCode;
         private String projectName;
-        private String ownerName;
         private String category; // BUSINESS, MANAGEMENT
-        private String department; // 申报部门
-        private Long supervisorId; // 分管领导用户ID
-        private String supervisorName; // 分管领导姓名
+        private String department; // 部门名称：仅用于汇总排名展示，与系统用户部门无关
         private BigDecimal primaryLeaderScore; // 中心主要领导评分
-        private BigDecimal supervisorLeaderScore; // 分管领导评分
         private BigDecimal otherLeaderScore; // 其他中心领导均分
         private BigDecimal headScore; // 正职评分均分
         private BigDecimal expertScore; // 代表评分（专家评分）

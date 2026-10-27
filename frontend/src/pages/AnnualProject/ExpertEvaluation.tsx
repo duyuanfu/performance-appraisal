@@ -202,19 +202,6 @@ export const ExpertEvaluationPage: React.FC = () => {
     }
   })();
 
-  const totalProjectCount = evaluationData?.projects.length || 0;
-  const supervisorProjectCount =
-    evaluationData?.projects.filter((p) => p.isSupervisor).length || 0;
-  const roleSummary = (() => {
-    if (supervisorProjectCount === 0) return baseRoleName;
-    if (supervisorProjectCount === totalProjectCount) {
-      return `分管领导（全部 ${totalProjectCount} 个项目）`;
-    }
-    return `分管领导（${supervisorProjectCount} 个项目） / ${baseRoleName}（其余 ${
-      totalProjectCount - supervisorProjectCount
-    } 个项目）`;
-  })();
-
   const dynamicColumns = [
     {
       title: '项目序号',
@@ -253,22 +240,12 @@ export const ExpertEvaluationPage: React.FC = () => {
       ),
     },
     {
-      title: '分管领导',
-      dataIndex: 'supervisorName',
-      key: 'supervisorName',
-      width: 110,
-      render: (name: string) => name || '-',
-    },
-    {
-      title: '我在本项目的角色',
+      title: '我的角色',
       key: 'myRole',
       width: 150,
-      render: (_: any, record: any) =>
-        record.isSupervisor ? (
-          <Tag color="gold">分管领导</Tag>
-        ) : (
-          <Tag color="blue">{record.myRoleName || baseRoleName}</Tag>
-        ),
+      render: (_: any, record: any) => (
+        <Tag color="blue">{record.myRoleName || baseRoleName}</Tag>
+      ),
     },
     ...(evaluationData?.metrics || []).map((m) => ({
       title: `${m.metricName}（${Number(m.maxScore).toFixed(0)}分）`,
@@ -484,7 +461,7 @@ export const ExpertEvaluationPage: React.FC = () => {
             <Space>
               <Text strong>考评主体：</Text>
               <Tag color="purple" style={{ fontSize: 13, padding: '2px 8px' }}>
-                {user?.realName}（{roleSummary}）
+                {user?.realName}（{baseRoleName}）
               </Tag>
             </Space>
           </Space>

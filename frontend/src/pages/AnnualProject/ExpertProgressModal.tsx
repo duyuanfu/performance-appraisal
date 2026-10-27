@@ -96,7 +96,7 @@ export const ExpertProgressModal: React.FC<Props> = ({ batchId, batchName, open,
       case 'PRIMARY_LEADER':
         return <Tag color="gold">{roleName || '中心主要领导'}</Tag>;
       case 'CENTER_LEADER':
-        return <Tag color="blue">{roleName || '中心领导'}</Tag>;
+        return <Tag color="blue">{roleName || '其他中心领导'}</Tag>;
       case 'DEPT_HEAD':
         return <Tag color="purple">{roleName || '部门正职'}</Tag>;
       case 'EXPERT':
@@ -293,7 +293,7 @@ export const ExpertProgressModal: React.FC<Props> = ({ batchId, batchName, open,
           <Radio.Button value="UNSUBMITTED">未完成 ({unsubmittedCount})</Radio.Button>
         </Radio.Group>
         <Text type="secondary" style={{ fontSize: 12 }}>
-          涵盖中心主要领导、分管领导、其他中心领导、部门正职与评审专家
+          涵盖中心主要领导、其他中心领导、部门正职与评审专家
         </Text>
       </div>
 

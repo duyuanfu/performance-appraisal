@@ -3,7 +3,6 @@ package com.rawcenter.appraisal.service;
 import com.rawcenter.appraisal.dto.MonthlyBatchSaveDTO;
 import com.rawcenter.appraisal.dto.MonthlyScoreSubmitDTO;
 import com.rawcenter.appraisal.vo.EvaluatorProgressVO;
-import com.rawcenter.appraisal.vo.ExamineePersonalResultVO;
 import com.rawcenter.appraisal.vo.MonthlyBatchVO;
 import com.rawcenter.appraisal.vo.MonthlyLeaderScoringVO;
 import com.rawcenter.appraisal.vo.MonthlySummaryVO;
@@ -24,7 +23,6 @@ public interface MonthlyAppraisalService {
     List<EvaluatorProgressVO> getLeaderProgress(Long batchId);
     void urgeLeader(Long batchId, Long leaderUserId);
     MonthlySummaryVO getMonthlyBatchSummary(Long batchId);
-    ExamineePersonalResultVO getExamineePersonalResult(Long batchId);
     byte[] exportMonthlyBatchExcel(Long batchId);
     List<com.rawcenter.appraisal.vo.UserVO> listCandidateExaminees();
     List<com.rawcenter.appraisal.vo.UserVO> listCandidateExaminees(String category);

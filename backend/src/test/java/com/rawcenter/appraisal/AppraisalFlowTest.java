@@ -21,6 +21,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @SpringBootTest
 public class AppraisalFlowTest {
@@ -241,16 +242,7 @@ public class AppraisalFlowTest {
         Assertions.assertNotNull(excelBytes);
         Assertions.assertTrue(excelBytes.length > 0);
 
-        // 7. Examinee checks personal result BEFORE archiving -> MUST be blocked with BusinessException
-        UserContext.set(UserContext.CurrentUser.builder()
-                .userId(9L)
-                .username("13987184673")
-                .realName("王昆淼")
-                .activeRole("DEPT_HEAD")
-                .build());
-        Assertions.assertThrows(BusinessException.class, () -> monthlyService.getExamineePersonalResult(batchId));
-
-        // 8. Admin completes/archives the batch
+        // 7. Admin completes/archives the batch
         UserContext.set(UserContext.CurrentUser.builder()
                 .userId(1L)
                 .username("admin")
@@ -259,19 +251,14 @@ public class AppraisalFlowTest {
                 .build());
         monthlyService.completeMonthlyBatch(batchId);
 
-        // 9. Examinee checks personal result AFTER archiving -> Successfully gets score & rankings
+        // 8. 普通职工不再能查看被考核记录或月度考核结果
         UserContext.set(UserContext.CurrentUser.builder()
                 .userId(9L)
                 .username("13987184673")
                 .realName("王昆淼")
-                .activeRole("DEPT_HEAD")
+                .activeRole("EMPLOYEE")
                 .build());
-
-        ExamineePersonalResultVO personalResult = monthlyService.getExamineePersonalResult(batchId);
-        // 王昆淼 (正职): 主要领导90*0.25 + 分管领导100*0.35 = 57.5000
-        Assertions.assertEquals(new BigDecimal("57.5000"), personalResult.getMyCompositeScore());
-        Assertions.assertEquals(1, personalResult.getMyRank());
-        Assertions.assertTrue(personalResult.getRankList().isEmpty(), "根据保密规则，不返回部门全员榜单，仅能查看本人总分和排名");
+        Assertions.assertTrue(monthlyService.listMonthlyBatches(null, null).isEmpty());
     }
 
     @Test
@@ -310,6 +297,14 @@ public class AppraisalFlowTest {
         Assertions.assertFalse(batches.isEmpty());
         Long batchId = batches.get(0).getId();
 
+        // 默认中心领导内部细分权重：主要领导 30% + 其他中心领导 70%，不再设置分管领导
+        AppraisalBatch batchDetail = projectService.getProjectBatchDetail(batchId);
+        Map<String, BigDecimal> roleWeightMap = batchDetail.getRoleWeights().stream()
+                .collect(Collectors.toMap(rw -> rw.getRoleCategory(), rw -> rw.getWeight()));
+        Assertions.assertEquals(new BigDecimal("30.0000"), roleWeightMap.get("PRIMARY_LEADER"));
+        Assertions.assertEquals(new BigDecimal("70.0000"), roleWeightMap.get("OTHER_LEADER"));
+        Assertions.assertFalse(roleWeightMap.containsKey("SUPERVISOR_LEADER"));
+
         // 验证批次名称唯一性：相同名称必须拦截抛出异常
         ProjectBatchSaveDTO dupNameDto = new ProjectBatchSaveDTO();
         dupNameDto.setBatchName("2026年度目标管理绩效项目评审测试"); // 重复名称
@@ -331,7 +326,7 @@ public class AppraisalFlowTest {
         p1.setBatchId(batchId);
         p1.setProjectCode("1");
         p1.setProjectName("原料集采平台数字化升级项目");
-        p1.setOwnerName("钱部长");
+        p1.setDepartment("原料部");
         p1.setSortOrder(1);
         projectService.saveProjectItem(p1);
 
@@ -339,12 +334,13 @@ public class AppraisalFlowTest {
         p2.setBatchId(batchId);
         p2.setProjectCode("2");
         p2.setProjectName("仓储物流智能调度系统开发项目");
-        p2.setOwnerName("周部长");
+        p2.setDepartment("物流部");
         p2.setSortOrder(2);
         projectService.saveProjectItem(p2);
 
         List<ProjectItemVO> projectList = projectService.listProjectItems(batchId);
         Assertions.assertEquals(2, projectList.size());
+        Assertions.assertEquals("原料部", projectList.get(0).getDepartment());
         Long p1Id = projectList.get(0).getId();
         Long p2Id = projectList.get(1).getId();
 
@@ -581,24 +577,21 @@ public class AppraisalFlowTest {
         p1.setBatchId(batchId);
         p1.setProjectCode("SP-01");
         p1.setProjectName("数字化配方智能算法优化");
-        p1.setSupervisorId(4L); // 施文萃
-        p1.setOwnerName("焦部长");
+        p1.setDepartment("技术中心");
         projectService.saveProjectItem(p1);
 
         ProjectItemSaveDTO p2 = new ProjectItemSaveDTO();
         p2.setBatchId(batchId);
         p2.setProjectCode("SP-02");
         p2.setProjectName("烟叶醇化智能温湿度调控");
-        p2.setSupervisorId(4L);
-        p2.setOwnerName("朱副部长");
+        p2.setDepartment("原料部");
         projectService.saveProjectItem(p2);
 
         ProjectItemSaveDTO p3 = new ProjectItemSaveDTO();
         p3.setBatchId(batchId);
         p3.setProjectCode("SP-03");
         p3.setProjectName("原料近红外快速无损检测");
-        p3.setSupervisorId(4L);
-        p3.setOwnerName("韩副部长");
+        p3.setDepartment("质检部");
         projectService.saveProjectItem(p3);
 
         // 3. Publish and Score
@@ -643,6 +636,7 @@ public class AppraisalFlowTest {
 
         AnnualProjectSummaryVO.ProjectSummaryRowVO topRow = summary.getRows().get(0);
         Assertions.assertEquals(new BigDecimal("96.0000"), topRow.getCompositeScore());
+        Assertions.assertEquals("技术中心", topRow.getDepartment());
 
         AnnualProjectSummaryVO.ProjectSummaryRowVO secondRow = summary.getRows().get(1);
         Assertions.assertEquals(new BigDecimal("85.0000"), secondRow.getCompositeScore());

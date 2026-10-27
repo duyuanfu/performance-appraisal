@@ -17,12 +17,9 @@ public class ProjectItemSaveDTO {
     @NotBlank(message = "项目名称不能为空")
     private String projectName;
 
-    @NotBlank(message = "项目负责人不能为空")
-    private String ownerName;
+    @NotBlank(message = "部门名称不能为空")
+    private String department; // 部门名称：仅用于汇总排名展示，与系统用户部门无关
 
-    private Long ownerUserId;
     private String category; // BUSINESS, MANAGEMENT
-    private String department; // 申报部门
-    private Long supervisorId; // 分管领导用户ID
     private Integer sortOrder;
 }

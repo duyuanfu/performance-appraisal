@@ -42,7 +42,7 @@ public class ProjectBatchSaveDTO {
 
     @Data
     public static class RoleWeightDTO {
-        private String roleCategory; // PRIMARY_LEADER, SUPERVISOR_LEADER, OTHER_LEADER, CENTER_LEADER_TOTAL, DEPT_HEAD, EXPERT
+        private String roleCategory; // PRIMARY_LEADER, OTHER_LEADER, CENTER_LEADER_TOTAL, DEPT_HEAD, EXPERT
         private String roleName;
         private BigDecimal weight;
         private Integer sortOrder;

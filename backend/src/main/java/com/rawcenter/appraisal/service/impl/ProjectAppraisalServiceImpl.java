@@ -168,11 +168,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         if (CollectionUtils.isEmpty(roleWeights)) {
             roleWeights = new ArrayList<>();
             roleWeights.add(createRoleWeightDTO("CENTER_LEADER_TOTAL", "中心领导综合小计", new BigDecimal("50.0000"), 1));
-            roleWeights.add(createRoleWeightDTO("PRIMARY_LEADER", "中心主要领导", new BigDecimal("20.0000"), 2));
-            roleWeights.add(createRoleWeightDTO("SUPERVISOR_LEADER", "中心分管领导", new BigDecimal("30.0000"), 3));
-            roleWeights.add(createRoleWeightDTO("OTHER_LEADER", "其他中心领导", new BigDecimal("50.0000"), 4));
-            roleWeights.add(createRoleWeightDTO("DEPT_HEAD", "部门正职评分", new BigDecimal("40.0000"), 5));
-            roleWeights.add(createRoleWeightDTO("EXPERT", "代表评分（评审专家）", new BigDecimal("10.0000"), 6));
+            roleWeights.add(createRoleWeightDTO("PRIMARY_LEADER", "中心主要领导", new BigDecimal("30.0000"), 2));
+            roleWeights.add(createRoleWeightDTO("OTHER_LEADER", "其他中心领导", new BigDecimal("70.0000"), 3));
+            roleWeights.add(createRoleWeightDTO("DEPT_HEAD", "部门正职评分", new BigDecimal("40.0000"), 4));
+            roleWeights.add(createRoleWeightDTO("EXPERT", "代表评分（评审专家）", new BigDecimal("10.0000"), 5));
         } else {
             Map<String, BigDecimal> rMap = roleWeights.stream()
                     .collect(Collectors.toMap(ProjectBatchSaveDTO.RoleWeightDTO::getRoleCategory, ProjectBatchSaveDTO.RoleWeightDTO::getWeight, (a, b) -> a));
@@ -183,12 +182,11 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             if (sumMain.subtract(new BigDecimal("100.0000")).abs().compareTo(new BigDecimal("0.0001")) > 0) {
                 throw new BusinessException(400, "三大考评主体权重（中心领导 + 正职评分 + 代表评分）合计必须为 100%，当前为：" + sumMain.stripTrailingZeros().toPlainString() + "%");
             }
-            BigDecimal wPrimary = rMap.getOrDefault("PRIMARY_LEADER", new BigDecimal("20.0000"));
-            BigDecimal wSupervisor = rMap.getOrDefault("SUPERVISOR_LEADER", new BigDecimal("30.0000"));
-            BigDecimal wOther = rMap.getOrDefault("OTHER_LEADER", new BigDecimal("50.0000"));
-            BigDecimal sumLeaders = wPrimary.add(wSupervisor).add(wOther);
+            BigDecimal wPrimary = rMap.getOrDefault("PRIMARY_LEADER", new BigDecimal("30.0000"));
+            BigDecimal wOther = rMap.getOrDefault("OTHER_LEADER", new BigDecimal("70.0000"));
+            BigDecimal sumLeaders = wPrimary.add(wOther);
             if (sumLeaders.subtract(new BigDecimal("100.0000")).abs().compareTo(new BigDecimal("0.0001")) > 0) {
-                throw new BusinessException(400, "中心领导内部细分权重（主要领导 + 分管领导 + 其他中心领导）合计必须为 100%，当前为：" + sumLeaders.stripTrailingZeros().toPlainString() + "%");
+                throw new BusinessException(400, "中心领导内部细分权重（主要领导 + 其他中心领导）合计必须为 100%，当前为：" + sumLeaders.stripTrailingZeros().toPlainString() + "%");
             }
         }
 
@@ -346,28 +344,14 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .orderByAsc(ProjectItem::getSortOrder)
                 .orderByAsc(ProjectItem::getId));
 
-        List<Long> supervisorIds = items.stream()
-                .map(ProjectItem::getSupervisorId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        Map<Long, SysUser> supervisorMap = supervisorIds.isEmpty() ? Collections.emptyMap()
-                : userMapper.selectBatchIds(supervisorIds).stream()
-                .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
-
         return items.stream().map(item -> {
-            SysUser supervisor = item.getSupervisorId() != null ? supervisorMap.get(item.getSupervisorId()) : null;
             return ProjectItemVO.builder()
                     .id(item.getId())
                     .batchId(item.getBatchId())
                     .projectCode(item.getProjectCode())
                     .projectName(item.getProjectName())
-                    .ownerUserId(item.getOwnerUserId())
-                    .ownerName(item.getOwnerName())
                     .category(item.getCategory())
                     .department(item.getDepartment())
-                    .supervisorId(item.getSupervisorId())
-                    .supervisorName(supervisor != null ? supervisor.getRealName() : "")
                     .materialPdfName(item.getMaterialPdfName())
                     .hasMaterial(StringUtils.hasText(item.getMaterialPdfPath()))
                     .attachmentPdfName(item.getAttachmentPdfName())
@@ -406,11 +390,8 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .batchId(dto.getBatchId())
                     .projectCode(dto.getProjectCode())
                     .projectName(dto.getProjectName())
-                    .ownerUserId(dto.getOwnerUserId())
-                    .ownerName(dto.getOwnerName())
                     .category(dto.getCategory() != null ? dto.getCategory() : "")
-                    .department(dto.getDepartment() != null ? dto.getDepartment() : "")
-                    .supervisorId(dto.getSupervisorId())
+                    .department(dto.getDepartment())
                     .sortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 1)
                     .createdBy(UserContext.getUserId())
                     .updatedBy(UserContext.getUserId())
@@ -428,17 +409,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             }
             item.setProjectCode(dto.getProjectCode());
             item.setProjectName(dto.getProjectName());
-            if (dto.getOwnerUserId() != null) {
-                item.setOwnerUserId(dto.getOwnerUserId());
-            }
-            item.setOwnerName(dto.getOwnerName());
             if (dto.getCategory() != null) {
                 item.setCategory(dto.getCategory());
             }
-            if (dto.getDepartment() != null) {
-                item.setDepartment(dto.getDepartment());
-            }
-            item.setSupervisorId(dto.getSupervisorId());
+            item.setDepartment(dto.getDepartment());
             if (dto.getSortOrder() != null) {
                 item.setSortOrder(dto.getSortOrder());
             }
@@ -573,15 +547,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         Map<Long, ProjectScoreRecord> recordMap = records.stream()
                 .collect(Collectors.toMap(ProjectScoreRecord::getProjectId, r -> r));
 
-        List<Long> supervisorIds = projects.stream()
-                .map(ProjectItem::getSupervisorId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        Map<Long, SysUser> supervisorMap = supervisorIds.isEmpty() ? Collections.emptyMap()
-                : userMapper.selectBatchIds(supervisorIds).stream()
-                .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
-
         String submissionStatus = "DRAFT";
         if (!records.isEmpty()) {
             boolean allSubmitted = records.size() == projects.size() && records.stream().allMatch(r -> "SUBMITTED".equals(r.getStatus()));
@@ -609,12 +574,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .projectId(p.getId())
                     .projectCode(p.getProjectCode())
                     .projectName(p.getProjectName())
-                    .ownerName(p.getOwnerName())
-                    .supervisorId(p.getSupervisorId())
-                    .supervisorName(p.getSupervisorId() != null && supervisorMap.get(p.getSupervisorId()) != null
-                            ? supervisorMap.get(p.getSupervisorId()).getRealName() : "")
-                    .isSupervisor(p.getSupervisorId() != null && p.getSupervisorId().equals(expertUserId))
-                    .myRoleName(resolveProjectRoleName(evaluatorPos, p.getSupervisorId(), expertUserId))
+                    .myRoleName(resolveProjectRoleName(evaluatorPos))
                     .materialPdfName(p.getMaterialPdfName())
                     .hasMaterial(StringUtils.hasText(p.getMaterialPdfPath()))
                     .attachmentPdfName(p.getAttachmentPdfName())
@@ -643,10 +603,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         return value != null ? value : BigDecimal.ZERO;
     }
 
-    private String resolveProjectRoleName(String evaluatorPos, Long supervisorId, Long currentUserId) {
-        if (supervisorId != null && supervisorId.equals(currentUserId)) {
-            return "分管领导";
-        }
+    private String resolveProjectRoleName(String evaluatorPos) {
         if ("PRIMARY_LEADER".equalsIgnoreCase(evaluatorPos)) {
             return "中心主要领导";
         }
@@ -666,7 +623,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
      * 构建某个项目的评分人明细（含未提交人员），用于汇总排名“查看明细”。
      */
     private List<EvaluatorScoreDetailVO> buildProjectEvaluatorDetails(
-            ProjectItem project,
+            Long projectId,
             List<ProjectExpert> experts,
             Map<Long, SysUser> expertUserMap,
             Map<Long, SysUser> evaluatorUserMap,
@@ -676,7 +633,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         List<EvaluatorScoreDetailVO> details = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
         List<ProjectScoreRecord> projectRecords = allRecords.stream()
-                .filter(r -> r.getProjectId().equals(project.getId()))
+                .filter(r -> r.getProjectId().equals(projectId))
                 .collect(Collectors.toList());
 
         for (ProjectExpert exp : experts) {
@@ -685,7 +642,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             if (u == null) {
                 continue;
             }
-            details.add(buildProjectEvaluatorDetail(project, uid, u, projectRecords, recordDetailMap, metrics));
+            details.add(buildProjectEvaluatorDetail(uid, u, projectRecords, recordDetailMap, metrics));
             seen.add(uid);
         }
 
@@ -698,7 +655,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             if (u == null) {
                 continue;
             }
-            details.add(buildProjectEvaluatorDetail(project, rec.getExpertUserId(), u, projectRecords, recordDetailMap, metrics));
+            details.add(buildProjectEvaluatorDetail(rec.getExpertUserId(), u, projectRecords, recordDetailMap, metrics));
             seen.add(rec.getExpertUserId());
         }
 
@@ -709,7 +666,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
     }
 
     private EvaluatorScoreDetailVO buildProjectEvaluatorDetail(
-            ProjectItem project,
             Long evaluatorUserId,
             SysUser evaluatorUser,
             List<ProjectScoreRecord> projectRecords,
@@ -725,13 +681,8 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         if ("PRIMARY_LEADER".equalsIgnoreCase(roleType)) {
             roleName = "中心主要领导";
         } else if ("CENTER_LEADER".equalsIgnoreCase(roleType)) {
-            if (project.getSupervisorId() != null && project.getSupervisorId().equals(evaluatorUserId)) {
-                roleType = "SUPERVISOR_LEADER";
-                roleName = "分管领导";
-            } else {
-                roleType = "OTHER_LEADER";
-                roleName = "其他中心领导";
-            }
+            roleType = "OTHER_LEADER";
+            roleName = "其他中心领导";
         } else if ("DEPT_HEAD".equalsIgnoreCase(roleType)) {
             roleName = "部门正职";
         } else if ("EXPERT".equalsIgnoreCase(roleType)) {
@@ -769,8 +720,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
         switch (roleType) {
             case "PRIMARY_LEADER":
                 return 0;
-            case "SUPERVISOR_LEADER":
-                return 1;
             case "OTHER_LEADER":
             case "CENTER_LEADER":
                 return 2;
@@ -953,7 +902,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .orderByAsc(SysUser::getId));
         for (SysUser cl : centerLeaders) {
             String roleType = "PRIMARY_LEADER".equalsIgnoreCase(cl.getPositionCategory()) ? "PRIMARY_LEADER" : "CENTER_LEADER";
-            String roleName = "PRIMARY_LEADER".equalsIgnoreCase(cl.getPositionCategory()) ? "中心主要领导" : "中心领导";
+            String roleName = "PRIMARY_LEADER".equalsIgnoreCase(cl.getPositionCategory()) ? "中心主要领导" : "其他中心领导";
             result.add(buildProjectEvaluatorProgress(cl, roleType, roleName, projectCount, recordsByEvaluator.get(cl.getId())));
         }
 
@@ -1102,9 +1051,8 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 .collect(Collectors.toMap(ProjectRoleWeight::getRoleCategory, ProjectRoleWeight::getWeight, (a, b) -> a));
 
         BigDecimal wCenterTotal = rwMap.getOrDefault("CENTER_LEADER_TOTAL", new BigDecimal("50.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
-        BigDecimal wPrimary = rwMap.getOrDefault("PRIMARY_LEADER", new BigDecimal("20.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
-        BigDecimal wSupervisor = rwMap.getOrDefault("SUPERVISOR_LEADER", new BigDecimal("30.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
-        BigDecimal wOther = rwMap.getOrDefault("OTHER_LEADER", new BigDecimal("50.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wPrimary = rwMap.getOrDefault("PRIMARY_LEADER", new BigDecimal("30.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
+        BigDecimal wOther = rwMap.getOrDefault("OTHER_LEADER", new BigDecimal("70.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
         BigDecimal wHead = rwMap.getOrDefault("DEPT_HEAD", new BigDecimal("40.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
         BigDecimal wExpert = rwMap.getOrDefault("EXPERT", new BigDecimal("10.0000")).divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
 
@@ -1119,15 +1067,6 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 }).collect(Collectors.toList());
 
         List<AnnualProjectSummaryVO.ProjectSummaryRowVO> summaryRows = new ArrayList<>();
-
-        List<Long> supervisorIds = projects.stream()
-                .map(ProjectItem::getSupervisorId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        Map<Long, SysUser> supervisorUserMap = supervisorIds.isEmpty() ? Collections.emptyMap()
-                : userMapper.selectBatchIds(supervisorIds).stream()
-                .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
 
         List<Long> evaluatorUserIds = allRecords.stream()
                 .map(ProjectScoreRecord::getExpertUserId)
@@ -1153,22 +1092,10 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
 
             // Category score collection for multi-tier formulas
             BigDecimal primaryScore = null;
-            BigDecimal supervisorScore = null;
             List<BigDecimal> otherLeaderScores = new ArrayList<>();
             List<BigDecimal> headScores = new ArrayList<>();
             List<BigDecimal> expertScoresList = new ArrayList<>();
             boolean hasTierEvaluators = false;
-
-            Long supervisorId = p.getSupervisorId();
-            if (supervisorId == null && StringUtils.hasText(p.getDepartment())) {
-                // 兼容历史数据：旧版按申报部门推导部门正职的分管领导
-                List<SysUser> deptHeads = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getDepartment, p.getDepartment())
-                        .eq(SysUser::getPositionCategory, "DEPT_HEAD"));
-                if (!deptHeads.isEmpty()) {
-                    supervisorId = deptHeads.get(0).getSupervisorId();
-                }
-            }
 
             for (ProjectScoreRecord rec : allRecords) {
                 if (!rec.getProjectId().equals(p.getId())) continue;
@@ -1182,12 +1109,8 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     primaryScore = rec.getTotalScore();
                     hasTierEvaluators = true;
                 } else if ("CENTER_LEADER".equalsIgnoreCase(pos)) {
+                    otherLeaderScores.add(rec.getTotalScore());
                     hasTierEvaluators = true;
-                    if (supervisorId != null && supervisorId.equals(rec.getExpertUserId())) {
-                        supervisorScore = rec.getTotalScore();
-                    } else {
-                        otherLeaderScores.add(rec.getTotalScore());
-                    }
                 } else if ("DEPT_HEAD".equalsIgnoreCase(pos)) {
                     headScores.add(rec.getTotalScore());
                     hasTierEvaluators = true;
@@ -1212,10 +1135,8 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             BigDecimal compositeScore = BigDecimal.ZERO;
 
             if (hasTierEvaluators) {
-                // 统一综合得分计算公式（按配置的主体角色权重，默认对齐《需求文档.md》最新规则）：
-                // 综合得分 = (中心主要领导评分×wPrimary + 分管领导评分×wSupervisor + 其他中心领导评分×wOther)×wCenterTotal + 正职评分×wHead + 代表评分(即评审专家)×wExpert
+                // 综合得分 = (中心主要领导评分×wPrimary + 其他中心领导评分×wOther)×wCenterTotal + 正职评分×wHead + 代表评分(即评审专家)×wExpert
                 BigDecimal centerPart = nz(primaryScore).multiply(wPrimary)
-                        .add(nz(supervisorScore).multiply(wSupervisor))
                         .add(nz(otherLeaderAvg).multiply(wOther))
                         .multiply(wCenterTotal);
                 compositeScore = centerPart
@@ -1251,20 +1172,15 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     .projectId(p.getId())
                     .projectCode(p.getProjectCode())
                     .projectName(p.getProjectName())
-                    .ownerName(p.getOwnerName())
                     .category(p.getCategory())
                     .department(p.getDepartment())
-                    .supervisorId(p.getSupervisorId())
-                    .supervisorName(p.getSupervisorId() != null && supervisorUserMap.get(p.getSupervisorId()) != null
-                            ? supervisorUserMap.get(p.getSupervisorId()).getRealName() : "")
                     .primaryLeaderScore(primaryScore)
-                    .supervisorLeaderScore(supervisorScore)
                     .otherLeaderScore(otherLeaderAvg)
                     .headScore(headAvg)
                     .expertScore(expertAvg)
                     .metricAvgScores(metricAvgScores)
                     .expertScores(expertScoreMap)
-                    .evaluatorDetails(buildProjectEvaluatorDetails(p, experts, expertUserMap, evaluatorUserMap, allRecords, recordDetailMap, metrics))
+                    .evaluatorDetails(buildProjectEvaluatorDetails(p.getId(), experts, expertUserMap, evaluatorUserMap, allRecords, recordDetailMap, metrics))
                     .compositeScore(compositeScore)
                     .rank(1)
                     .build());
@@ -1315,12 +1231,11 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             List<List<Object>> dataList = new ArrayList<>();
 
             if ("TARGET_PROJECT".equalsIgnoreCase(summary.getBatchType())) {
-                // 目标绩效评审得分表: 序号, 项目名称, 部门, 中心主要领导评分, 分管领导评分, 其它中心领导评分（其它4位中心领导）, 正职评分, 代表评分（评审专家评分）, 综合得分, 得分系数, 排序
+                // 目标绩效评审得分表: 序号, 项目名称, 部门名称, 中心主要领导评分, 其它中心领导评分（其它4位中心领导）, 正职评分, 代表评分（评审专家评分）, 综合得分, 得分系数, 排序
                 head.add(List.of("序号"));
                 head.add(List.of("项目名称"));
-                head.add(List.of("分管领导"));
+                head.add(List.of("部门名称"));
                 head.add(List.of("中心主要领导评分"));
-                head.add(List.of("分管领导评分"));
                 head.add(List.of("其它中心领导评分（其它4位中心领导）"));
                 head.add(List.of("正职评分"));
                 head.add(List.of("代表评分（评审专家评分）"));
@@ -1333,9 +1248,8 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     List<Object> row = new ArrayList<>();
                     row.add(idx++);
                     row.add(r.getProjectName());
-                    row.add(r.getSupervisorName() != null ? r.getSupervisorName() : "");
+                    row.add(r.getDepartment() != null ? r.getDepartment() : "");
                     row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
-                    row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
@@ -1345,12 +1259,11 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     dataList.add(row);
                 }
             } else if ("SPECIAL_INNOVATION".equalsIgnoreCase(summary.getBatchType())) {
-                // 专项与创新任务评审得分表: 序号, 项目名称, 分管领导, 中心主要领导评分, 分管领导评分, 其它中心领导评分, 正职评分, 代表评分（评审专家评分）, 综合得分, 排序
+                // 专项与创新任务评审得分表: 序号, 项目名称, 部门名称, 中心主要领导评分, 其它中心领导评分, 正职评分, 代表评分（评审专家评分）, 综合得分, 排序
                 head.add(List.of("序号"));
                 head.add(List.of("项目名称"));
-                head.add(List.of("分管领导"));
+                head.add(List.of("部门名称"));
                 head.add(List.of("中心主要领导评分"));
-                head.add(List.of("分管领导评分"));
                 head.add(List.of("其它中心领导评分"));
                 head.add(List.of("正职评分"));
                 head.add(List.of("代表评分（评审专家评分）"));
@@ -1362,9 +1275,8 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     List<Object> row = new ArrayList<>();
                     row.add(idx++);
                     row.add(r.getProjectName());
-                    row.add(r.getSupervisorName() != null ? r.getSupervisorName() : "");
+                    row.add(r.getDepartment() != null ? r.getDepartment() : "");
                     row.add(r.getPrimaryLeaderScore() != null ? r.getPrimaryLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
-                    row.add(r.getSupervisorLeaderScore() != null ? r.getSupervisorLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getOtherLeaderScore() != null ? r.getOtherLeaderScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getHeadScore() != null ? r.getHeadScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
                     row.add(r.getExpertScore() != null ? r.getExpertScore().setScale(4, RoundingMode.HALF_UP).toString() : "");
@@ -1376,7 +1288,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 // Legacy ANNUAL_PROJECT
                 head.add(List.of("项目序号"));
                 head.add(List.of("项目名称"));
-                head.add(List.of("项目负责人"));
+                head.add(List.of("部门名称"));
 
                 for (AppraisalMetric m : summary.getMetrics()) {
                     head.add(List.of(m.getMetricName() + " (" + m.getMaxScore().stripTrailingZeros().toPlainString() + "分)"));
@@ -1393,7 +1305,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                     List<Object> row = new ArrayList<>();
                     row.add(r.getProjectCode());
                     row.add(r.getProjectName());
-                    row.add(r.getOwnerName());
+                    row.add(r.getDepartment() != null ? r.getDepartment() : "");
 
                     for (AppraisalMetric m : summary.getMetrics()) {
                         BigDecimal avg = r.getMetricAvgScores().get(m.getId());

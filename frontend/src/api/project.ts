@@ -56,12 +56,8 @@ export interface ProjectItemVO {
   batchId: number;
   projectCode: string;
   projectName: string;
-  ownerUserId?: number;
-  ownerName: string;
   category?: string;
-  department?: string;
-  supervisorId?: number;
-  supervisorName?: string;
+  department: string;
   materialPdfName?: string;
   hasMaterial: boolean;
   attachmentPdfName?: string;
@@ -76,11 +72,8 @@ export interface ProjectItemSaveDTO {
   batchId: number;
   projectCode: string;
   projectName: string;
-  ownerUserId?: number;
-  ownerName: string;
   category?: string;
-  department?: string;
-  supervisorId?: number;
+  department: string;
   sortOrder?: number;
 }
 
@@ -97,11 +90,7 @@ export interface ExpertEvaluationVO {
     projectId: number;
     projectCode: string;
     projectName: string;
-    ownerName: string;
-    supervisorId?: number;
-    supervisorName?: string;
     myRoleName?: string;
-    isSupervisor?: boolean;
     materialPdfName?: string;
     hasMaterial: boolean;
     attachmentPdfName?: string;
@@ -130,13 +119,9 @@ export interface AnnualProjectSummaryVO {
     projectId: number;
     projectCode: string;
     projectName: string;
-    ownerName: string;
     category?: string;
-    department?: string;
-    supervisorId?: number;
-    supervisorName?: string;
+    department: string;
     primaryLeaderScore?: number;
-    supervisorLeaderScore?: number;
     otherLeaderScore?: number;
     headScore?: number;
     expertScore?: number;

@@ -37,11 +37,7 @@ public class ExpertEvaluationVO {
         private Long projectId;
         private String projectCode;
         private String projectName;
-        private String ownerName;
-        private Long supervisorId;
-        private String supervisorName;
-        private String myRoleName; // 我在本项目中的考评主体角色（如：分管领导、其他中心领导）
-        private Boolean isSupervisor; // 当前用户是否为该项目的分管领导
+        private String myRoleName; // 我在本项目中的考评主体角色（如：其他中心领导）
         private String materialPdfName;
         private Boolean hasMaterial;
         private String attachmentPdfName;

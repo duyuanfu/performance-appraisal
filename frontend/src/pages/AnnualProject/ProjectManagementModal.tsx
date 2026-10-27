@@ -10,7 +10,6 @@ import {
   Form,
   Input,
   InputNumber,
-  Select,
   Typography,
   Tooltip,
 } from 'antd';
@@ -31,8 +30,6 @@ import {
   ProjectItemVO,
   ProjectItemSaveDTO,
 } from '../../api/project';
-import { listUsersApi } from '../../api/user';
-import { UserVO } from '../../api/auth';
 
 const { Text } = Typography;
 
@@ -54,17 +51,7 @@ export const ProjectManagementModal: React.FC<Props> = ({
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<ProjectItemVO | null>(null);
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
-  const [supervisors, setSupervisors] = useState<UserVO[]>([]);
   const [form] = Form.useForm();
-
-  const loadSupervisors = async () => {
-    try {
-      const users = await listUsersApi();
-      setSupervisors(users.filter((u) => u.positionCategory === 'CENTER_LEADER'));
-    } catch (e) {
-      // Error handled
-    }
-  };
 
   const loadProjects = async () => {
     if (!batchId) return;
@@ -80,7 +67,6 @@ export const ProjectManagementModal: React.FC<Props> = ({
   useEffect(() => {
     if (open && batchId) {
       loadProjects();
-      loadSupervisors();
     }
   }, [open, batchId]);
 
@@ -91,8 +77,7 @@ export const ProjectManagementModal: React.FC<Props> = ({
       form.setFieldsValue({
         projectCode: item.projectCode,
         projectName: item.projectName,
-        ownerName: item.ownerName,
-        supervisorId: item.supervisorId,
+        department: item.department,
         sortOrder: item.sortOrder,
       });
     } else {
@@ -100,8 +85,7 @@ export const ProjectManagementModal: React.FC<Props> = ({
       form.setFieldsValue({
         projectCode: String(projects.length + 1),
         projectName: '',
-        ownerName: '',
-        supervisorId: undefined,
+        department: '',
         sortOrder: projects.length + 1,
       });
     }
@@ -117,8 +101,7 @@ export const ProjectManagementModal: React.FC<Props> = ({
         batchId,
         projectCode: values.projectCode,
         projectName: values.projectName,
-        ownerName: values.ownerName,
-        supervisorId: values.supervisorId,
+        department: values.department,
         sortOrder: values.sortOrder,
       };
 
@@ -172,17 +155,11 @@ export const ProjectManagementModal: React.FC<Props> = ({
       width: 200,
     },
     {
-      title: '分管领导',
-      dataIndex: 'supervisorName',
-      key: 'supervisorName',
-      width: 130,
+      title: '部门名称',
+      dataIndex: 'department',
+      key: 'department',
+      width: 150,
       render: (name: string) => name || '-',
-    },
-    {
-      title: '项目负责人',
-      dataIndex: 'ownerName',
-      key: 'ownerName',
-      width: 110,
     },
     {
       title: '申报材料 (PDF)',
@@ -363,25 +340,6 @@ export const ProjectManagementModal: React.FC<Props> = ({
       >
         <Form form={form} layout="vertical">
           <Form.Item
-            name="supervisorId"
-            label="分管领导"
-            rules={[{ required: true, message: '请选择分管领导' }]}
-          >
-            <Select
-              placeholder="选择分管领导"
-              showSearch
-              optionFilterProp="children"
-              allowClear
-            >
-              {supervisors.map((s) => (
-                <Select.Option key={s.id} value={s.id}>
-                  {s.realName}（{s.department || '中心'} - {s.position || '中心领导'}）
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
             name="projectCode"
             label="项目序号 / 编号"
             rules={[{ required: true, message: '请输入项目序号或编号' }]}
@@ -398,11 +356,11 @@ export const ProjectManagementModal: React.FC<Props> = ({
           </Form.Item>
 
           <Form.Item
-            name="ownerName"
-            label="项目负责人姓名"
-            rules={[{ required: true, message: '请输入项目负责人' }]}
+            name="department"
+            label="部门名称"
+            rules={[{ required: true, message: '请输入部门名称' }]}
           >
-            <Input placeholder="负责人姓名（纯文本展示，不设系统角色）" />
+            <Input placeholder="部门名称（仅用于汇总排名展示，不关联系统用户部门）" />
           </Form.Item>
 
           <Form.Item name="sortOrder" label="排序序号">

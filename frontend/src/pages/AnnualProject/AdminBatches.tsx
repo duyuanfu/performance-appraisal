@@ -63,9 +63,8 @@ const DEFAULT_MAIN_ROLE_WEIGHTS: ProjectRoleWeightItem[] = [
 ];
 
 const DEFAULT_LEADER_SUB_WEIGHTS: ProjectRoleWeightItem[] = [
-  { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导 (陈剑主任)', weight: 20, sortOrder: 1 },
-  { roleCategory: 'SUPERVISOR_LEADER', roleName: '中心分管领导', weight: 30, sortOrder: 2 },
-  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导 (均分)', weight: 50, sortOrder: 3 },
+  { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导', weight: 30, sortOrder: 1 },
+  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导', weight: 70, sortOrder: 2 },
 ];
 
 interface Props {
@@ -153,10 +152,10 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
         ['CENTER_LEADER_TOTAL', 'DEPT_HEAD', 'EXPERT'].includes(rw.roleCategory)
       );
       const sub = summary.roleWeights.filter((rw) =>
-        ['PRIMARY_LEADER', 'SUPERVISOR_LEADER', 'OTHER_LEADER'].includes(rw.roleCategory)
+        ['PRIMARY_LEADER', 'OTHER_LEADER'].includes(rw.roleCategory)
       );
       if (main.length === 3) setMainRoleWeights(main);
-      if (sub.length === 3) setLeaderSubWeights(sub);
+      if (sub.length === 2) setLeaderSubWeights(sub);
     } else {
       setMainRoleWeights(DEFAULT_MAIN_ROLE_WEIGHTS);
       setLeaderSubWeights(DEFAULT_LEADER_SUB_WEIGHTS);
@@ -199,7 +198,7 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
       }
 
       if (!isLeaderSubWeightValid) {
-        message.error(`中心领导内部细分权重（主要领导 + 分管领导 + 其他领导）合计必须等于 100.0000%（当前为 ${totalLeaderSubWeight.toFixed(4)}%）`);
+        message.error(`中心领导内部细分权重（主要领导 + 其他中心领导）合计必须等于 100.0000%（当前为 ${totalLeaderSubWeight.toFixed(4)}%）`);
         return;
       }
 
@@ -474,10 +473,10 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
       key: 'projectName',
     },
     {
-      title: '项目负责人',
-      dataIndex: 'ownerName',
-      key: 'ownerName',
-      width: 120,
+      title: '部门名称',
+      dataIndex: 'department',
+      key: 'department',
+      width: 150,
     },
     {
       title: '申报材料 (PDF)',

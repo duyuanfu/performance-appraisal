@@ -129,23 +129,6 @@ export interface MonthlySummaryVO {
   deputyRows?: TierSummaryRowVO[];
 }
 
-export interface ExamineePersonalResultVO {
-  batchId: number;
-  batchName: string;
-  appraisalPeriod: string;
-  myCompositeScore: number;
-  myRank: number;
-  totalExaminees: number;
-  rankList: {
-    rank: number;
-    examineeUserId: number;
-    realName: string;
-    department: string;
-    compositeScore: number;
-    isMe: boolean;
-  }[];
-}
-
 export interface EvaluatorProgressVO {
   userId: number;
   realName: string;
@@ -218,8 +201,4 @@ export function withdrawLeaderScoresApi(batchId: number): Promise<void> {
 
 export function getMonthlyBatchSummaryApi(batchId: number): Promise<MonthlySummaryVO> {
   return request.get(`/monthly/summary/${batchId}`);
-}
-
-export function getExamineePersonalResultApi(batchId: number): Promise<ExamineePersonalResultVO> {
-  return request.get(`/monthly/my-result/${batchId}`);
 }

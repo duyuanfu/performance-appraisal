@@ -4,7 +4,6 @@ import com.rawcenter.appraisal.common.Result;
 import com.rawcenter.appraisal.dto.MonthlyBatchSaveDTO;
 import com.rawcenter.appraisal.dto.MonthlyScoreSubmitDTO;
 import com.rawcenter.appraisal.service.MonthlyAppraisalService;
-import com.rawcenter.appraisal.vo.ExamineePersonalResultVO;
 import com.rawcenter.appraisal.vo.MonthlyBatchVO;
 import com.rawcenter.appraisal.vo.MonthlyLeaderScoringVO;
 import com.rawcenter.appraisal.vo.MonthlySummaryVO;
@@ -109,11 +108,6 @@ public class MonthlyAppraisalController {
     @GetMapping("/summary/{batchId}")
     public Result<MonthlySummaryVO> getMonthlyBatchSummary(@PathVariable Long batchId) {
         return Result.success(monthlyAppraisalService.getMonthlyBatchSummary(batchId));
-    }
-
-    @GetMapping("/my-result/{batchId}")
-    public Result<ExamineePersonalResultVO> getExamineePersonalResult(@PathVariable Long batchId) {
-        return Result.success(monthlyAppraisalService.getExamineePersonalResult(batchId));
     }
 
     @GetMapping("/export/{batchId}")

@@ -151,11 +151,8 @@ CREATE TABLE IF NOT EXISTS project_item (
     batch_id BIGINT NOT NULL,
     project_code VARCHAR(64) NOT NULL,
     project_name VARCHAR(128) NOT NULL,
-    owner_user_id BIGINT NULL,
-    owner_name VARCHAR(64) NOT NULL,
     category VARCHAR(32) NOT NULL DEFAULT '',
-    department VARCHAR(64) DEFAULT '',
-    supervisor_id BIGINT NULL,
+    department VARCHAR(128) NOT NULL DEFAULT '',
     material_pdf_name VARCHAR(255) DEFAULT '',
     material_pdf_path VARCHAR(255) DEFAULT '',
     attachment_pdf_name VARCHAR(255) DEFAULT '',
@@ -181,7 +178,7 @@ CREATE TABLE IF NOT EXISTS project_role_weight (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_proj_batch_role_category (batch_id, role_category),
-    CONSTRAINT chk_project_role_category CHECK (role_category IN ('CENTER_LEADER_TOTAL', 'PRIMARY_LEADER', 'SUPERVISOR_LEADER', 'OTHER_LEADER', 'DEPT_HEAD', 'EXPERT')),
+    CONSTRAINT chk_project_role_category CHECK (role_category IN ('CENTER_LEADER_TOTAL', 'PRIMARY_LEADER', 'OTHER_LEADER', 'DEPT_HEAD', 'EXPERT')),
     CONSTRAINT chk_project_role_weight CHECK (weight >= 0 AND weight <= 100)
 );
 
@@ -248,8 +245,6 @@ CREATE INDEX IF NOT EXISTS idx_monthly_record_evaluator ON monthly_score_record 
 CREATE INDEX IF NOT EXISTS idx_monthly_record_status ON monthly_score_record (batch_id, status);
 CREATE INDEX IF NOT EXISTS idx_monthly_detail_metric ON monthly_score_detail (metric_id);
 CREATE INDEX IF NOT EXISTS idx_project_batch_category ON project_item (batch_id, category);
-CREATE INDEX IF NOT EXISTS idx_project_owner ON project_item (owner_user_id);
-CREATE INDEX IF NOT EXISTS idx_project_supervisor ON project_item (supervisor_id);
 CREATE INDEX IF NOT EXISTS idx_project_role_category ON project_role_weight (role_category);
 CREATE INDEX IF NOT EXISTS idx_project_expert_user ON project_expert (expert_user_id);
 CREATE INDEX IF NOT EXISTS idx_project_record_project ON project_score_record (batch_id, project_id);
@@ -278,8 +273,6 @@ ALTER TABLE monthly_score_record ADD CONSTRAINT fk_monthly_record_updated_by FOR
 ALTER TABLE monthly_score_detail ADD CONSTRAINT fk_monthly_detail_record FOREIGN KEY (record_id) REFERENCES monthly_score_record (id) ON DELETE CASCADE;
 ALTER TABLE monthly_score_detail ADD CONSTRAINT fk_monthly_detail_metric FOREIGN KEY (metric_id) REFERENCES appraisal_metric (id) ON DELETE RESTRICT;
 ALTER TABLE project_item ADD CONSTRAINT fk_project_item_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE;
-ALTER TABLE project_item ADD CONSTRAINT fk_project_item_owner FOREIGN KEY (owner_user_id) REFERENCES sys_user (id) ON DELETE SET NULL;
-ALTER TABLE project_item ADD CONSTRAINT fk_project_item_supervisor FOREIGN KEY (supervisor_id) REFERENCES sys_user (id) ON DELETE SET NULL;
 ALTER TABLE project_item ADD CONSTRAINT fk_project_item_created_by FOREIGN KEY (created_by) REFERENCES sys_user (id) ON DELETE SET NULL;
 ALTER TABLE project_item ADD CONSTRAINT fk_project_item_updated_by FOREIGN KEY (updated_by) REFERENCES sys_user (id) ON DELETE SET NULL;
 ALTER TABLE project_role_weight ADD CONSTRAINT fk_project_role_batch FOREIGN KEY (batch_id) REFERENCES appraisal_batch (id) ON DELETE CASCADE;

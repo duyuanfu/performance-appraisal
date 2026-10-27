@@ -19,7 +19,7 @@ public class ProjectRoleWeight {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long batchId;
-    private String roleCategory; // CENTER_LEADER_TOTAL, PRIMARY_LEADER, SUPERVISOR_LEADER, OTHER_LEADER, DEPT_HEAD, EXPERT
+    private String roleCategory; // CENTER_LEADER_TOTAL, PRIMARY_LEADER, OTHER_LEADER, DEPT_HEAD, EXPERT
     private String roleName;
     private BigDecimal weight;
     private Integer sortOrder;

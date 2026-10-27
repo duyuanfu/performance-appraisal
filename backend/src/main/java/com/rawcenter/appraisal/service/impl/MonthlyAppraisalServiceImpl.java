@@ -13,7 +13,6 @@ import com.rawcenter.appraisal.service.MetricService;
 import com.rawcenter.appraisal.service.MonthlyAppraisalService;
 import com.rawcenter.appraisal.vo.EvaluatorProgressVO;
 import com.rawcenter.appraisal.vo.EvaluatorScoreDetailVO;
-import com.rawcenter.appraisal.vo.ExamineePersonalResultVO;
 import com.rawcenter.appraisal.vo.MonthlyBatchVO;
 import com.rawcenter.appraisal.vo.MonthlyLeaderScoringVO;
 import com.rawcenter.appraisal.vo.MonthlySummaryVO;
@@ -76,14 +75,9 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 List<Long> allowedBatchIds = myEvaluations.stream().map(MonthlyEvaluator::getBatchId).collect(Collectors.toList());
                 wrapper.in(AppraisalBatch::getId, allowedBatchIds);
             }
-        } else if ("EMPLOYEE".equalsIgnoreCase(activeRole) && currentUserId != null) {
-            List<MonthlyExaminee> myExaminees = examineeMapper.selectList(new LambdaQueryWrapper<MonthlyExaminee>()
-                    .eq(MonthlyExaminee::getExamineeUserId, currentUserId));
-            if (myExaminees.isEmpty()) {
-                return Collections.emptyList();
-            }
-            List<Long> allowedBatchIds = myExaminees.stream().map(MonthlyExaminee::getBatchId).collect(Collectors.toList());
-            wrapper.in(AppraisalBatch::getId, allowedBatchIds);
+        } else if ("EMPLOYEE".equalsIgnoreCase(activeRole)) {
+            // 普通职工不再提供月度考核结果及被考核记录查询入口
+            return Collections.emptyList();
         }
 
         wrapper.orderByDesc(AppraisalBatch::getCreatedAt);
@@ -1338,62 +1332,6 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .rows(summaryRows)
                 .headRows(headRows)
                 .deputyRows(deputyRows)
-                .build();
-    }
-
-    @Override
-    public ExamineePersonalResultVO getExamineePersonalResult(Long batchId) {
-        Long currentUserId = UserContext.getUserId();
-        AppraisalBatch batch = batchMapper.selectById(batchId);
-        if (batch == null) {
-            throw new BusinessException(404, "批次不存在");
-        }
-        if (!"COMPLETED".equals(batch.getStatus())) {
-            throw new BusinessException(400, "该批次月度考核尚未归档公布，请等待管理员归档后查看最终考核结果与排名");
-        }
-
-        MonthlySummaryVO summary = getMonthlyBatchSummary(batchId);
-
-        MonthlySummaryVO.TierSummaryRowVO myHeadRow = summary.getHeadRows() != null ? summary.getHeadRows().stream()
-                .filter(r -> r.getExamineeUserId().equals(currentUserId))
-                .findFirst().orElse(null) : null;
-        MonthlySummaryVO.TierSummaryRowVO myDeputyRow = summary.getDeputyRows() != null ? summary.getDeputyRows().stream()
-                .filter(r -> r.getExamineeUserId().equals(currentUserId))
-                .findFirst().orElse(null) : null;
-
-        BigDecimal myScore = BigDecimal.ZERO;
-        int myRank = 1;
-        int totalExaminees = summary.getRows().size();
-
-        if (myHeadRow != null) {
-            myScore = myHeadRow.getCompositeScore();
-            myRank = myHeadRow.getRank();
-            totalExaminees = summary.getHeadRows().size();
-        } else if (myDeputyRow != null) {
-            myScore = myDeputyRow.getCompositeScore();
-            myRank = myDeputyRow.getRank();
-            totalExaminees = summary.getDeputyRows().size();
-        } else {
-            MonthlySummaryVO.SummaryRowVO myRow = summary.getRows().stream()
-                    .filter(r -> r.getExamineeUserId().equals(currentUserId))
-                    .findFirst()
-                    .orElse(null);
-            if (myRow == null) {
-                throw new BusinessException(403, "您不在该月度考核名单中");
-            }
-            myScore = myRow.getCompositeScore();
-            myRank = myRow.getRank();
-        }
-
-        // 规则：月度绩效结果只能看到自己总分和排名，不返回其他人员得分与榜单明细
-        return ExamineePersonalResultVO.builder()
-                .batchId(batchId)
-                .batchName(summary.getBatchName())
-                .appraisalPeriod(summary.getAppraisalPeriod())
-                .myCompositeScore(myScore)
-                .myRank(myRank)
-                .totalExaminees(totalExaminees)
-                .rankList(Collections.emptyList())
                 .build();
     }
 

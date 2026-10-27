@@ -1,12 +1,12 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Result } from 'antd';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { MainLayout } from './components/Layout/MainLayout';
 import LoginPage from './pages/Login';
 import UsersPage from './pages/Users';
 import { MonthlyAdminBatchesPage } from './pages/MonthlyAppraisal/AdminBatches';
 import { LeaderScoringPage } from './pages/MonthlyAppraisal/LeaderScoring';
-import { EmployeeResultPage } from './pages/MonthlyAppraisal/EmployeeResult';
 import { AnnualProjectAdminBatchesPage } from './pages/AnnualProject/AdminBatches';
 import { ExpertEvaluationPage } from './pages/AnnualProject/ExpertEvaluation';
 
@@ -26,7 +26,13 @@ const HomeRedirect: React.FC = () => {
       return <Navigate to="/expert-evaluation" replace />;
     case 'EMPLOYEE':
     default:
-      return <Navigate to="/my-performance" replace />;
+      return (
+        <Result
+          status="info"
+          title="暂无可用功能"
+          subTitle="普通职工账号暂未开放月度考核结果查询功能，如有疑问请联系管理员。"
+        />
+      );
   }
 };
 
@@ -75,9 +81,6 @@ const App: React.FC = () => {
 
             {/* Expert Routes */}
             <Route path="expert-evaluation" element={<ExpertEvaluationPage />} />
-
-            {/* Employee Routes */}
-            <Route path="my-performance" element={<EmployeeResultPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

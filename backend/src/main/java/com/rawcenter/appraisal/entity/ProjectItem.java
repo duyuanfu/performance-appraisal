@@ -23,11 +23,8 @@ public class ProjectItem {
     private Long batchId;
     private String projectCode;
     private String projectName;
-    private Long ownerUserId;
-    private String ownerName;
     private String category; // BUSINESS, MANAGEMENT
-    private String department;
-    private Long supervisorId;
+    private String department; // 部门名称：仅用于汇总排名展示，与系统用户部门无关
     private String materialPdfName;
     private String materialPdfPath;
     private String attachmentPdfName;
