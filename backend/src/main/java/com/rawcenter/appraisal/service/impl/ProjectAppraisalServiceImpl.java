@@ -163,13 +163,26 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             throw new BusinessException(400, "评审批次名称【" + dto.getBatchName().trim() + "】已存在，请使用不同的批次名称！");
         }
 
+        // 先确定批次类型：专项与创新任务默认中心主要领导 40%、其他中心领导 60%；
+        // 目标绩效任务（含历史 ANNUAL_PROJECT）保持 30% / 70%。
+        String batchType = StringUtils.hasText(dto.getBatchType()) ? dto.getBatchType() : "TARGET_PROJECT";
+        if (dto.getId() != null && !StringUtils.hasText(dto.getBatchType())) {
+            AppraisalBatch existingBatch = batchMapper.selectById(dto.getId());
+            if (existingBatch != null && StringUtils.hasText(existingBatch.getBatchType())) {
+                batchType = existingBatch.getBatchType();
+            }
+        }
+        boolean isSpecialInnovation = "SPECIAL_INNOVATION".equalsIgnoreCase(batchType);
+        BigDecimal defaultPrimaryWeight = isSpecialInnovation ? new BigDecimal("40.0000") : new BigDecimal("30.0000");
+        BigDecimal defaultOtherWeight = isSpecialInnovation ? new BigDecimal("60.0000") : new BigDecimal("70.0000");
+
         // 1. 考评主体角色及权重校验与默认装配（按《需求文档.md》标准权重）
         List<ProjectBatchSaveDTO.RoleWeightDTO> roleWeights = dto.getRoleWeights();
         if (CollectionUtils.isEmpty(roleWeights)) {
             roleWeights = new ArrayList<>();
             roleWeights.add(createRoleWeightDTO("CENTER_LEADER_TOTAL", "中心领导综合小计", new BigDecimal("50.0000"), 1));
-            roleWeights.add(createRoleWeightDTO("PRIMARY_LEADER", "中心主要领导", new BigDecimal("30.0000"), 2));
-            roleWeights.add(createRoleWeightDTO("OTHER_LEADER", "其他中心领导", new BigDecimal("70.0000"), 3));
+            roleWeights.add(createRoleWeightDTO("PRIMARY_LEADER", "中心主要领导", defaultPrimaryWeight, 2));
+            roleWeights.add(createRoleWeightDTO("OTHER_LEADER", "其他中心领导", defaultOtherWeight, 3));
             roleWeights.add(createRoleWeightDTO("DEPT_HEAD", "部门正职评分", new BigDecimal("40.0000"), 4));
             roleWeights.add(createRoleWeightDTO("EXPERT", "代表评分（评审专家）", new BigDecimal("10.0000"), 5));
         } else {
@@ -182,15 +195,13 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             if (sumMain.subtract(new BigDecimal("100.0000")).abs().compareTo(new BigDecimal("0.0001")) > 0) {
                 throw new BusinessException(400, "三大考评主体权重（中心领导 + 正职评分 + 代表评分）合计必须为 100%，当前为：" + sumMain.stripTrailingZeros().toPlainString() + "%");
             }
-            BigDecimal wPrimary = rMap.getOrDefault("PRIMARY_LEADER", new BigDecimal("30.0000"));
-            BigDecimal wOther = rMap.getOrDefault("OTHER_LEADER", new BigDecimal("70.0000"));
+            BigDecimal wPrimary = rMap.getOrDefault("PRIMARY_LEADER", defaultPrimaryWeight);
+            BigDecimal wOther = rMap.getOrDefault("OTHER_LEADER", defaultOtherWeight);
             BigDecimal sumLeaders = wPrimary.add(wOther);
             if (sumLeaders.subtract(new BigDecimal("100.0000")).abs().compareTo(new BigDecimal("0.0001")) > 0) {
                 throw new BusinessException(400, "中心领导内部细分权重（主要领导 + 其他中心领导）合计必须为 100%，当前为：" + sumLeaders.stripTrailingZeros().toPlainString() + "%");
             }
         }
-
-        String batchType = StringUtils.hasText(dto.getBatchType()) ? dto.getBatchType() : "TARGET_PROJECT";
 
         AppraisalBatch batch;
         if (dto.getId() == null) {

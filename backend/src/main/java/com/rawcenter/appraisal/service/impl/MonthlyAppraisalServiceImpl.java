@@ -62,20 +62,14 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 .eq(StringUtils.hasText(status), AppraisalBatch::getStatus, status)
                 .like(StringUtils.hasText(keyword), AppraisalBatch::getBatchName, keyword);
 
-        // 数据权限隔离：未发布的草稿对非管理员完全不可见；各角色仅可见其有评分任务或有参评结果的批次
+        // 数据权限隔离：未发布的草稿对非管理员完全不可见；各角色仅可见其确实有评分任务的批次。
+        // 注意：仅作为被考核人并不授予批次可见性。
         boolean isAdmin = "ADMIN".equalsIgnoreCase(activeRole) || "SYS_ADMIN".equalsIgnoreCase(activeRole);
         if (!isAdmin) {
             wrapper.ne(AppraisalBatch::getStatus, "DRAFT");
         }
 
-        if ("LEADER".equalsIgnoreCase(activeRole) && currentUserId != null) {
-            List<MonthlyEvaluator> myEvaluations = evaluatorMapper.selectList(new LambdaQueryWrapper<MonthlyEvaluator>()
-                    .eq(MonthlyEvaluator::getLeaderUserId, currentUserId));
-            if (!myEvaluations.isEmpty()) {
-                List<Long> allowedBatchIds = myEvaluations.stream().map(MonthlyEvaluator::getBatchId).collect(Collectors.toList());
-                wrapper.in(AppraisalBatch::getId, allowedBatchIds);
-            }
-        } else if ("EMPLOYEE".equalsIgnoreCase(activeRole)) {
+        if ("EMPLOYEE".equalsIgnoreCase(activeRole)) {
             // 普通职工不再提供月度考核结果及被考核记录查询入口
             return Collections.emptyList();
         }
@@ -92,6 +86,17 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
 
         for (AppraisalBatch b : batches) {
             List<EvaluatorProgressVO> progressList = getLeaderProgress(b.getId());
+            EvaluatorProgressVO myProgress = currentUserId == null ? null
+                    : progressList.stream()
+                    .filter(p -> currentUserId.equals(p.getUserId()))
+                    .findFirst().orElse(null);
+
+            // 非管理员必须在本批次中承担实际评分任务（中心领导、部门正副职互评等）才可见。
+            // 仅被列为被考核人、但没有其他评分对象的部门正副职，不应看到该批次。
+            if (!isAdmin && myProgress == null) {
+                continue;
+            }
+
             int totalEvaluatorCount = progressList.size();
             int submittedEvaluatorCount = (int) progressList.stream()
                     .filter(p -> "SUBMITTED".equals(p.getStatus()))
@@ -120,17 +125,8 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
             Long examineeCount = examineeMapper.selectCount(new LambdaQueryWrapper<MonthlyExaminee>()
                     .eq(MonthlyExaminee::getBatchId, b.getId()));
 
-            String myStatus = "NOT_STARTED";
-            boolean myTaskAssigned = false;
-            if (currentUserId != null) {
-                EvaluatorProgressVO myProgress = progressList.stream()
-                        .filter(p -> currentUserId.equals(p.getUserId()))
-                        .findFirst().orElse(null);
-                if (myProgress != null) {
-                    myTaskAssigned = true;
-                    myStatus = myProgress.getStatus();
-                }
-            }
+            String myStatus = myProgress != null ? myProgress.getStatus() : "NOT_STARTED";
+            boolean myTaskAssigned = myProgress != null;
 
             boolean isExpired = b.getEndTime() != null && now.isAfter(b.getEndTime());
 

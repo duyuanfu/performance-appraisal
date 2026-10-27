@@ -62,10 +62,19 @@ const DEFAULT_MAIN_ROLE_WEIGHTS: ProjectRoleWeightItem[] = [
   { roleCategory: 'EXPERT', roleName: '代表评分 (评审专家)', weight: 10, sortOrder: 3 },
 ];
 
-const DEFAULT_LEADER_SUB_WEIGHTS: ProjectRoleWeightItem[] = [
+const TARGET_PROJECT_LEADER_SUB_WEIGHTS: ProjectRoleWeightItem[] = [
   { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导', weight: 30, sortOrder: 1 },
   { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导', weight: 70, sortOrder: 2 },
 ];
+
+const SPECIAL_INNOVATION_LEADER_SUB_WEIGHTS: ProjectRoleWeightItem[] = [
+  { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导', weight: 40, sortOrder: 1 },
+  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导', weight: 60, sortOrder: 2 },
+];
+
+const getDefaultLeaderSubWeights = (isSpecialInnovation: boolean): ProjectRoleWeightItem[] =>
+  (isSpecialInnovation ? SPECIAL_INNOVATION_LEADER_SUB_WEIGHTS : TARGET_PROJECT_LEADER_SUB_WEIGHTS)
+    .map((rw) => ({ ...rw }));
 
 interface Props {
   batchType?: 'TARGET_PROJECT' | 'SPECIAL_INNOVATION';
@@ -91,7 +100,9 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [relaunchBatchId, setRelaunchBatchId] = useState<number | null>(null);
   const [mainRoleWeights, setMainRoleWeights] = useState<ProjectRoleWeightItem[]>(DEFAULT_MAIN_ROLE_WEIGHTS);
-  const [leaderSubWeights, setLeaderSubWeights] = useState<ProjectRoleWeightItem[]>(DEFAULT_LEADER_SUB_WEIGHTS);
+  const [leaderSubWeights, setLeaderSubWeights] = useState<ProjectRoleWeightItem[]>(
+    getDefaultLeaderSubWeights(isSpecialInnovation)
+  );
   const [metrics, setMetrics] = useState<MetricItem[]>([]);
   const [form] = Form.useForm();
 
@@ -122,7 +133,7 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
     setMetrics(defaultMetrics);
 
     setMainRoleWeights(DEFAULT_MAIN_ROLE_WEIGHTS);
-    setLeaderSubWeights(DEFAULT_LEADER_SUB_WEIGHTS);
+    setLeaderSubWeights(getDefaultLeaderSubWeights(isSpecialInnovation));
 
     form.setFieldsValue({
       appraisalPeriod: dayjs(),
@@ -147,6 +158,9 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
       : defaultMetrics;
     setMetrics(activeMetrics);
 
+    setMainRoleWeights(DEFAULT_MAIN_ROLE_WEIGHTS);
+    setLeaderSubWeights(getDefaultLeaderSubWeights(isSpecialInnovation));
+
     if (summary.roleWeights && summary.roleWeights.length > 0) {
       const main = summary.roleWeights.filter((rw) =>
         ['CENTER_LEADER_TOTAL', 'DEPT_HEAD', 'EXPERT'].includes(rw.roleCategory)
@@ -155,10 +169,8 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
         ['PRIMARY_LEADER', 'OTHER_LEADER'].includes(rw.roleCategory)
       );
       if (main.length === 3) setMainRoleWeights(main);
-      if (sub.length === 2) setLeaderSubWeights(sub);
-    } else {
-      setMainRoleWeights(DEFAULT_MAIN_ROLE_WEIGHTS);
-      setLeaderSubWeights(DEFAULT_LEADER_SUB_WEIGHTS);
+      // 专项与创新任务重新发起时按新标准使用 40%/60%，不沿用历史批次的 30%/70%
+      if (!isSpecialInnovation && sub.length === 2) setLeaderSubWeights(sub);
     }
 
     form.setFieldsValue({

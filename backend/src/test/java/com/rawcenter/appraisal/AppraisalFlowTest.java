@@ -262,6 +262,82 @@ public class AppraisalFlowTest {
     }
 
     @Test
+    public void testDepartmentHeadOnlyExamineeCannotSeeMonthlyBatch() {
+        // 管理员创建一个仅有王昆淼(9)一人参评的部门正职批次
+        UserContext.set(UserContext.CurrentUser.builder()
+                .userId(1L)
+                .username("admin")
+                .realName("业务管理员")
+                .activeRole("ADMIN")
+                .build());
+
+        MonthlyBatchSaveDTO singleDto = new MonthlyBatchSaveDTO();
+        singleDto.setBatchName("2026年10月正职单人参评可见性测试");
+        singleDto.setCategory("DEPT_HEAD");
+        singleDto.setAppraisalPeriod("2026-10");
+        singleDto.setStartTime(LocalDateTime.now().minusHours(1));
+        singleDto.setEndTime(LocalDateTime.now().plusDays(7));
+
+        MonthlyBatchSaveDTO.LeaderWeightDTO l1 = new MonthlyBatchSaveDTO.LeaderWeightDTO();
+        l1.setLeaderUserId(3L);
+        l1.setWeight(new BigDecimal("50.0000"));
+        MonthlyBatchSaveDTO.LeaderWeightDTO l2 = new MonthlyBatchSaveDTO.LeaderWeightDTO();
+        l2.setLeaderUserId(4L);
+        l2.setWeight(new BigDecimal("50.0000"));
+        singleDto.setLeaders(Arrays.asList(l1, l2));
+        singleDto.setExamineeUserIds(Collections.singletonList(9L));
+        singleDto.setMetrics(metricService.getDefaultTemplates("MONTHLY"));
+
+        monthlyService.saveMonthlyBatch(singleDto);
+        Long singleBatchId = monthlyService.listMonthlyBatches(null, "2026年10月正职单人参评可见性测试")
+                .get(0).getId();
+        monthlyService.publishMonthlyBatch(singleBatchId);
+
+        // 王昆淼仅是该批次被考核人，没有其他正职可互评，不应在互评批次列表中看到它
+        UserContext.set(UserContext.CurrentUser.builder()
+                .userId(9L)
+                .username("13987184673")
+                .realName("王昆淼")
+                .activeRole("DEPT_HEAD")
+                .build());
+        List<MonthlyBatchVO> visibleToExaminee = monthlyService.listMonthlyBatches(null, "2026年10月正职单人参评可见性测试");
+        Assertions.assertTrue(visibleToExaminee.stream().noneMatch(b -> singleBatchId.equals(b.getId())),
+                "仅作为被考核人的部门正职不应看到该月度互评批次");
+
+        // 管理员再创建一个有两位正职参评的批次，王昆淼需要与另一位正职互评，应可见
+        UserContext.set(UserContext.CurrentUser.builder()
+                .userId(1L)
+                .username("admin")
+                .realName("业务管理员")
+                .activeRole("ADMIN")
+                .build());
+        MonthlyBatchSaveDTO peerDto = new MonthlyBatchSaveDTO();
+        peerDto.setBatchName("2026年10月正职互评可见性测试");
+        peerDto.setCategory("DEPT_HEAD");
+        peerDto.setAppraisalPeriod("2026-10");
+        peerDto.setStartTime(LocalDateTime.now().minusHours(1));
+        peerDto.setEndTime(LocalDateTime.now().plusDays(7));
+        peerDto.setLeaders(Arrays.asList(l1, l2));
+        peerDto.setExamineeUserIds(Arrays.asList(9L, 10L));
+        peerDto.setMetrics(metricService.getDefaultTemplates("MONTHLY"));
+
+        monthlyService.saveMonthlyBatch(peerDto);
+        Long peerBatchId = monthlyService.listMonthlyBatches(null, "2026年10月正职互评可见性测试")
+                .get(0).getId();
+        monthlyService.publishMonthlyBatch(peerBatchId);
+
+        UserContext.set(UserContext.CurrentUser.builder()
+                .userId(9L)
+                .username("13987184673")
+                .realName("王昆淼")
+                .activeRole("DEPT_HEAD")
+                .build());
+        List<MonthlyBatchVO> visibleToPeer = monthlyService.listMonthlyBatches(null, "2026年10月正职互评可见性测试");
+        Assertions.assertTrue(visibleToPeer.stream().anyMatch(b -> peerBatchId.equals(b.getId())),
+                "作为部门正职且存在其他互评对象时，应能看到月度互评批次");
+    }
+
+    @Test
     public void testAnnualProjectAppraisalFullFlow() {
         // Set UserContext to Admin (userId = 1)
         UserContext.set(UserContext.CurrentUser.builder()
@@ -274,6 +350,7 @@ public class AppraisalFlowTest {
         // 1. Create Annual Project Batch
         ProjectBatchSaveDTO batchDto = new ProjectBatchSaveDTO();
         batchDto.setBatchName("2026年度目标管理绩效项目评审测试");
+        batchDto.setBatchType("TARGET_PROJECT");
         batchDto.setAppraisalPeriod("2026");
         batchDto.setStartTime(LocalDateTime.now().minusHours(1));
         batchDto.setEndTime(LocalDateTime.now().plusDays(10));
@@ -571,6 +648,13 @@ public class AppraisalFlowTest {
         List<AppraisalBatch> batches = projectService.listProjectBatches("SPECIAL_INNOVATION", null, "2026年度专项与创新任务评审测试");
         Assertions.assertFalse(batches.isEmpty());
         Long batchId = batches.get(0).getId();
+
+        // 专项与创新任务默认中心领导内部细分权重：主要领导 40% + 其他中心领导 60%
+        AppraisalBatch specialDetail = projectService.getProjectBatchDetail(batchId);
+        Map<String, BigDecimal> specialRoleWeightMap = specialDetail.getRoleWeights().stream()
+                .collect(Collectors.toMap(rw -> rw.getRoleCategory(), rw -> rw.getWeight()));
+        Assertions.assertEquals(new BigDecimal("40.0000"), specialRoleWeightMap.get("PRIMARY_LEADER"));
+        Assertions.assertEquals(new BigDecimal("60.0000"), specialRoleWeightMap.get("OTHER_LEADER"));
 
         // 2. Add candidate projects
         ProjectItemSaveDTO p1 = new ProjectItemSaveDTO();
