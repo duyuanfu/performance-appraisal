@@ -2,6 +2,8 @@
 
 一套面向原料中心的 WEB 端综合绩效与项目评审管理平台。系统支持**月度部门负责人绩效考核**和**年度目标管理绩效（按项目）评审**两大核心业务场景，实现考核指标配置灵活化、材料查阅与评分线上化、结果自动加权计算与排名、历史数据可追溯导出。
 
+> 当前版本：**v1.1.0**
+
 ---
 
 ## 一、 系统架构与技术栈
@@ -9,7 +11,7 @@
 ### 1. 技术架构选型
 - **后端架构**：Java 17 + Spring Boot 3.2.5 + MyBatis-Plus + MySQL 8.0 + EasyExcel 3.3.4 + JJWT
 - **前端架构**：React 18 + Vite 5 + Ant Design 5 + TypeScript + React Router 6 + Axios + Day.js
-- **部署环境**：支持标准云服务器（Linux + Nginx + Jar）部署及 **Docker / Docker Compose** 容器化一键部署
+- **部署环境**：**Docker / Docker Compose** 容器化一键部署；本地开发环境支持 JDK、Node.js、Maven 直接运行
 
 ### 2. 核心设计亮点
 1. **多角色与行级数据权限隔离**：基于 RBAC 模型（管理员、中心领导、评审专家、被考核人员），支持**单账号一人身兼多职并在顶部自由切换身份**。
@@ -76,111 +78,7 @@ npm run dev
 
 ---
 
-## 四、 云服务器传统方式部署 (Linux + Nginx + Jar)
-
-适用系统：Ubuntu 20.04+ / Debian 11+ / CentOS 7.9+ / Rocky Linux 9+
-
-### 1. 安装基础环境 (以 Ubuntu 为例)
-```bash
-sudo apt update
-sudo apt install -y openjdk-17-jre-headless nginx mysql-server
-```
-
-### 2. 部署后端服务
-1. **打包后端 Jar**：
-   ```bash
-   cd backend
-   mvn clean package -DskipTests
-   # 生成产物：backend/target/performance-appraisal-backend-1.0.0-SNAPSHOT.jar
-   ```
-2. **上传至服务器**（例如上传至 `/opt/appraisal/backend/`）：
-   ```bash
-   mkdir -p /opt/appraisal/backend /opt/appraisal/data/uploads
-   cp target/performance-appraisal-backend-1.0.0-SNAPSHOT.jar /opt/appraisal/backend/app.jar
-   ```
-3. **配置 Systemd 服务自启动**（`/etc/systemd/system/appraisal.service`）：
-   ```ini
-   [Unit]
-   Description=Performance Appraisal Backend Service
-   After=syslog.target network.target mysql.service
-
-   [Service]
-   Type=simple
-   User=root
-   WorkingDirectory=/opt/appraisal/backend
-   Environment="MYSQL_HOST=127.0.0.1"
-   Environment="MYSQL_PORT=3306"
-   Environment="MYSQL_DB=appraisal_db"
-   Environment="MYSQL_USER=root"
-   Environment="MYSQL_PASSWORD=YourPassword"
-   ExecStart=/usr/bin/java -Xms256m -Xmx512m -jar /opt/appraisal/backend/app.jar
-   Restart=always
-   RestartSec=10
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-4. **启动后端服务**：
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable appraisal
-   sudo systemctl start appraisal
-   sudo systemctl status appraisal
-   ```
-
-### 3. 部署前端静态网站与 Nginx 反向代理
-1. **前端本地打包**：
-   ```bash
-   cd frontend
-   npm run build
-   # 生成产物目录：frontend/dist/
-   ```
-2. **上传至服务器**（例如上传至 `/opt/appraisal/frontend/dist/`）：
-   ```bash
-   mkdir -p /opt/appraisal/frontend
-   cp -r dist /opt/appraisal/frontend/
-   ```
-3. **配置 Nginx 站点**（`/etc/nginx/conf.d/appraisal.conf`）：
-   ```nginx
-   server {
-       listen 80;
-       server_name your-domain.com; # 替换为您的域名或公网IP
-
-       client_max_body_size 50M;
-
-       # 前端页面
-       location / {
-           root /opt/appraisal/frontend/dist;
-           index index.html index.htm;
-           try_files $uri $uri/ /index.html;
-       }
-
-       # 后端 API 反向代理
-       location /api/ {
-           proxy_pass http://127.0.0.1:8080/api/;
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $scheme;
-       }
-
-       # 材料静态文件反向代理
-       location /files/ {
-           proxy_pass http://127.0.0.1:8080/files/;
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-       }
-   }
-   ```
-4. **重载 Nginx**：
-   ```bash
-   sudo nginx -t
-   sudo systemctl restart nginx
-   ```
-
----
-
-## 五、 Docker / Docker Compose 容器化一键部署（极简推荐）
+## 四、 Docker / Docker Compose 容器化一键部署（极简推荐）
 
 前端与后端均已配置 **Docker 多阶段构建（Multi-Stage Build）**。**云服务器宿主机无需安装任何 Maven、JDK、Node.js、npm 或 MySQL**！只要服务器安装了 Docker，即可实现真正意义上的零环境依赖一键自动化部署。
 
@@ -196,7 +94,49 @@ sudo systemctl start docker
 sudo apt install -y docker-compose-plugin || sudo apt install -y docker-compose
 ```
 
-### 2. 拉取代码并一键启动集群
+### 2. 基础镜像加速（默认已启用）
+
+项目默认通过 `DOCKER_REGISTRY` 使用 `docker.m.daocloud.io` 拉取构建基础镜像，避免直接从 Docker Hub 拉取 `eclipse-temurin`、`maven`、`node`、`nginx` 时长时间卡住。MySQL 仍使用 `mysql:8.0` 官方镜像，已部署环境不会因为更换镜像名而重新拉取。
+
+如需切换镜像源，可在项目根目录创建 `.env`：
+
+```bash
+DOCKER_REGISTRY=docker.m.daocloud.io
+```
+
+或临时指定：
+
+```bash
+DOCKER_REGISTRY=docker.m.daocloud.io docker compose up -d --build
+```
+
+如需使用 Docker 官方源：
+
+```bash
+DOCKER_REGISTRY=docker.io docker compose up -d --build
+```
+
+如果某个镜像源不可用，可替换为其他可访问的 Docker Hub 镜像加速地址，或为 Docker 配置 `/etc/docker/daemon.json` 的 `registry-mirrors`。
+
+本项目 Dockerfile 已内置以下下载加速与缓存策略：
+
+- 后端 Maven 使用阿里云镜像；
+- 前端 npm 使用 `registry.npmmirror.com` 镜像；
+- 后端 Maven 本地仓库、前端 npm 缓存均使用 BuildKit 缓存挂载，后续构建无需重复下载依赖；
+- `backend/.dockerignore`、`frontend/.dockerignore` 已排除 `target`、`node_modules`、`dist` 等目录，避免向 Docker 传输大量无关文件。
+
+> 首次构建仍然需要下载基础镜像和全部依赖；从第二次构建开始会明显加速。Docker 23+ 默认启用 BuildKit；如果未启用，可执行 `DOCKER_BUILDKIT=1 docker compose build`。
+
+如果基础镜像拉取仍然很慢，可先单独预拉取并确认镜像源可用：
+
+```bash
+docker pull docker.m.daocloud.io/library/maven:3.9-eclipse-temurin-17
+docker pull docker.m.daocloud.io/library/eclipse-temurin:17-jre-jammy
+docker pull docker.m.daocloud.io/library/node:20-alpine
+docker pull docker.m.daocloud.io/library/nginx:alpine
+```
+
+### 3. 拉取代码并一键启动集群
 直接克隆仓库并一条命令拉起全部服务（Docker 容器内会自动拉取 Maven 镜像编译 Java 源码、拉取 Node 镜像构建前端静态资源）：
 ```bash
 # 1. 克隆代码仓库
@@ -208,7 +148,7 @@ docker compose up -d --build
 # （注：如果您的服务器使用的是老版本 docker-compose 命令，请执行：docker-compose up -d --build）
 ```
 
-### 3. 检查服务健康状态
+### 4. 检查服务健康状态
 ```bash
 docker compose ps
 # 或 docker-compose ps
@@ -218,37 +158,36 @@ docker compose ps
 - **`appraisal-backend`**：Spring Boot 3 服务，启动时由 Flyway 自动执行 `db/migration` 下的版本化脚本；材料 PDF 持久化映射至本地 `./data/uploads`；
 - **`appraisal-frontend`**：Nginx 80 端口容器，内置前端生产页面并自动反向代理 API 流量至后端。
 
-### 4. 访问系统
+### 5. 访问系统
 在浏览器中直接访问服务器公网 IP 或域名：
 ```text
 http://<服务器公网IP>
 ```
 默认管理员账号：`admin`，默认密码：`password123`。
 
-### 5. 常用运维与维护命令
+### 6. 常用运维与维护命令
 - 查看实时运行日志：`docker compose logs -f` 或 `docker compose logs -f backend`
 - 重启所有服务：`docker compose restart`
 - 停止服务（数据依然完整保留）：`docker compose down`
-- 代码更新后的再次部署：见下方“六、再次部署 / 版本升级指南”
+- 代码更新后的再次部署：见下方“五、再次部署 / 版本升级指南”
 
 ---
 
-## 六、 再次部署 / 版本升级指南
+## 五、 再次部署 / 版本升级指南
 
 适用于服务器上已经成功部署过、现在需要更新代码、配置或数据库结构的场景。核心原则：**先备份、再更新、后验证；不要删除数据库卷和上传目录。**
 
 ### 0. 部署前检查
 
 1. **确认代码已推送**：服务器通过 `git pull` 更新代码时，本地提交必须先推送到远程仓库；否则服务器拉不到最新代码。
-2. **确认部署方式**：服务器使用的是 Docker Compose，还是 Linux + Nginx + Jar 传统方式。
-3. **备份数据库和上传文件**：升级前必须备份，尤其是包含 Flyway 数据库迁移的版本。
-4. **检查是否有新迁移脚本**：查看 `backend/src/main/resources/db/migration/` 是否新增 `V*.sql`。Flyway 会在后端启动时自动执行；已经执行过的脚本不要修改，新增变更请新建更高版本脚本。
+2. **备份数据库和上传文件**：升级前必须备份，尤其是包含 Flyway 数据库迁移的版本。
+3. **检查是否有新迁移脚本**：查看 `backend/src/main/resources/db/migration/` 是否新增 `V*.sql`。Flyway 会在后端启动时自动执行；已经执行过的脚本不要修改，新增变更请新建更高版本脚本。
 
 > 注意：如果服务器上有本地改动，请先备份或处理，避免 `git pull` 覆盖服务器上的临时修改。
 
-### 1. Docker Compose 方式（推荐）
+### 1. 更新代码与备份
 
-#### 1.1 进入项目目录并更新代码
+#### 1.1 更新代码
 
 ```bash
 cd /opt/appraisal        # 替换为服务器实际项目目录
@@ -310,98 +249,26 @@ docker compose up -d --build
 
 > Flyway 迁移是向前执行的。如果本次升级包含不兼容的数据库结构变更，仅回滚代码可能不够，需要结合升级前的数据库备份恢复数据。恢复数据库会覆盖当前数据，操作前务必再次确认。
 
-### 2. Linux + Nginx + Jar 传统方式
+### 2. 再次部署检查清单
 
-#### 2.1 更新代码并备份
+| 检查项 | 操作 |
+| :--- | :--- |
+| 备份数据库 | `mysqldump` 到 `backups/` |
+| 备份上传文件 | 打包 `data/uploads` |
+| 更新代码 | `git pull` |
+| 后端更新 | `docker compose up -d --build backend` |
+| 前端更新 | `docker compose up -d --build frontend` |
+| 数据库迁移 | 后端启动时 Flyway 自动执行 |
+| 健康检查 | `docker compose ps` + 日志 |
+| 页面验证 | 登录、批次、评分、汇总、导出 |
 
-```bash
-cd /path/to/performance-appraisal    # 替换为服务器实际项目目录
-git pull
+> 当前版本为 **v1.1.0**，Docker 镜像标签为 `appraisal-backend:v1.1.0` 和 `appraisal-frontend:v1.1.0`。首次构建需要下载基础镜像和依赖，后续构建会复用 BuildKit 缓存；如依赖未变化但构建异常，可执行 `docker compose build --no-cache` 重新构建。
 
-mkdir -p ~/backups
-
-# 备份数据库
-mysqldump -uroot -p --single-transaction --routines --triggers appraisal_db \
-  > ~/backups/db_$(date +%F_%H%M%S).sql
-
-# 备份上传文件
-tar -czf ~/backups/uploads_$(date +%F_%H%M%S).tar.gz /opt/appraisal/data/uploads
-
-# 备份旧后端 Jar 和前端静态文件
-cp /opt/appraisal/backend/app.jar ~/backups/app_$(date +%F_%H%M%S).jar
-cp -r /opt/appraisal/frontend/dist ~/backups/dist_$(date +%F_%H%M%S)
-```
-
-#### 2.2 重新构建并部署后端
-
-```bash
-cd backend
-mvn clean package -DskipTests
-
-sudo cp target/performance-appraisal-backend-1.0.0-SNAPSHOT.jar /opt/appraisal/backend/app.jar
-sudo systemctl restart appraisal
-sudo systemctl status appraisal --no-pager
-sudo journalctl -u appraisal -n 100 --no-pager
-```
-
-#### 2.3 重新构建并部署前端
-
-```bash
-cd ../frontend
-npm ci
-npm run build
-
-# 保留旧版本目录，便于快速回滚
-sudo rm -rf /opt/appraisal/frontend/dist.bak
-sudo mv /opt/appraisal/frontend/dist /opt/appraisal/frontend/dist.bak
-sudo cp -r dist /opt/appraisal/frontend/dist
-
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-#### 2.4 检查部署结果
-
-```bash
-curl -I http://127.0.0.1/
-sudo journalctl -u appraisal -n 100 --no-pager
-```
-
-浏览器登录后重点检查：登录、批次列表、月度互评、专项与创新任务创建、项目汇总与导出。
-
-#### 2.5 回滚
-
-```bash
-# 回滚后端 Jar
-sudo cp ~/backups/app_<备份时间>.jar /opt/appraisal/backend/app.jar
-sudo systemctl restart appraisal
-
-# 回滚前端静态文件
-sudo rm -rf /opt/appraisal/frontend/dist
-sudo mv /opt/appraisal/frontend/dist.bak /opt/appraisal/frontend/dist
-sudo systemctl reload nginx
-```
-
-如数据库迁移导致不兼容，需要使用升级前的数据库备份恢复数据。
-
-### 3. 再次部署检查清单
-
-| 检查项 | Docker Compose | Linux + Nginx + Jar |
-| :--- | :--- | :--- |
-| 备份数据库 | `mysqldump` 到 `backups/` | `mysqldump` 到 `~/backups/` |
-| 备份上传文件 | 打包 `data/uploads` | 打包 `/opt/appraisal/data/uploads` |
-| 更新代码 | `git pull` | `git pull` |
-| 后端更新 | `docker compose up -d --build backend` | 重新打包 Jar 并重启 `appraisal` |
-| 前端更新 | `docker compose up -d --build frontend` | `npm ci && npm run build` 后替换 `dist` |
-| 数据库迁移 | 后端启动时 Flyway 自动执行 | 后端启动时 Flyway 自动执行 |
-| 健康检查 | `docker compose ps` + 日志 | `systemctl status appraisal` + 日志 |
-| 页面验证 | 登录、批次、评分、汇总、导出 | 登录、批次、评分、汇总、导出 |
-
-> 上传的 PDF 材料属于业务数据，升级时不要删除 `data/uploads`（Docker）或 `/opt/appraisal/data/uploads`（传统部署）。如果是迁移到新服务器，还需要同时迁移数据库备份和上传目录。
+> 上传的 PDF 材料属于业务数据，升级时不要删除 `data/uploads`。如果是迁移到新服务器，还需要同时迁移数据库备份和上传目录。
 
 ---
 
-## 七、 目录工程结构一览
+## 六、 目录工程结构一览
 
 ```text
 performance-appraisal/
@@ -418,6 +285,7 @@ performance-appraisal/
 │   │   ├── application.yml                    # 核心配置文件（含业务指标参数）
 │   │   └── db/migration/                      # Flyway 版本化脚本（V1 建表、V2 初始化账号、V3 项目字段与权重调整）
 │   ├── Dockerfile                             # 后端 Docker 镜像构建文件
+│   ├── .dockerignore                          # 排除 target 等无关构建上下文
 │   └── pom.xml
 │
 ├── frontend/                                  # 前端 React 工程
@@ -432,6 +300,7 @@ performance-appraisal/
 │   │   │   └── AnnualProject/                 # 年度项目评审、材料分屏查阅、专家打分、发布前总览
 │   │   └── App.tsx                            # 动态路由与角色守卫
 │   ├── Dockerfile                             # 前端多阶段构建 Dockerfile
+│   ├── .dockerignore                          # 排除 node_modules、dist 等无关构建上下文
 │   ├── nginx.conf                             # 生产级 Nginx 配置
 │   └── package.json
 │
@@ -450,7 +319,7 @@ performance-appraisal/
 
 ---
 
-## 八、数据库表说明
+## 七、数据库表说明
 
 数据库结构与基础数据由 **Flyway** 自动管理，脚本位于 `backend/src/main/resources/db/migration/`：
 
@@ -510,7 +379,7 @@ project_score_record ──< project_score_detail >── appraisal_metric
 
 ---
 
-## 九、 常见问题排查 (FAQ)
+## 八、 常见问题排查 (FAQ)
 
 1. **Q：为什么在 Windows 上上传 PDF 报错找不到路径？**
    * A：已通过 `new File(uploadDir).getAbsoluteFile()` 与 Java NIO `Files.copy` 彻底解决，避免了 Tomcat 拼接触发临时路径不存在的问题。
