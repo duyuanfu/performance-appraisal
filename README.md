@@ -229,15 +229,179 @@ http://<服务器公网IP>
 - 查看实时运行日志：`docker compose logs -f` 或 `docker compose logs -f backend`
 - 重启所有服务：`docker compose restart`
 - 停止服务（数据依然完整保留）：`docker compose down`
-- 代码更新后重新编译拉起：
-  ```bash
-  git pull
-  docker compose up -d --build
-  ```
+- 代码更新后的再次部署：见下方“六、再次部署 / 版本升级指南”
 
 ---
 
-## 六、 目录工程结构一览
+## 六、 再次部署 / 版本升级指南
+
+适用于服务器上已经成功部署过、现在需要更新代码、配置或数据库结构的场景。核心原则：**先备份、再更新、后验证；不要删除数据库卷和上传目录。**
+
+### 0. 部署前检查
+
+1. **确认代码已推送**：服务器通过 `git pull` 更新代码时，本地提交必须先推送到远程仓库；否则服务器拉不到最新代码。
+2. **确认部署方式**：服务器使用的是 Docker Compose，还是 Linux + Nginx + Jar 传统方式。
+3. **备份数据库和上传文件**：升级前必须备份，尤其是包含 Flyway 数据库迁移的版本。
+4. **检查是否有新迁移脚本**：查看 `backend/src/main/resources/db/migration/` 是否新增 `V*.sql`。Flyway 会在后端启动时自动执行；已经执行过的脚本不要修改，新增变更请新建更高版本脚本。
+
+> 注意：如果服务器上有本地改动，请先备份或处理，避免 `git pull` 覆盖服务器上的临时修改。
+
+### 1. Docker Compose 方式（推荐）
+
+#### 1.1 进入项目目录并更新代码
+
+```bash
+cd /opt/appraisal        # 替换为服务器实际项目目录
+git status
+git pull
+```
+
+#### 1.2 备份数据库和上传文件
+
+```bash
+mkdir -p backups
+
+# 备份 MySQL 数据库
+docker compose exec -T mysql mysqldump -uroot -proot \
+  --single-transaction --routines --triggers appraisal_db \
+  > backups/db_$(date +%F_%H%M%S).sql
+
+# 备份上传的 PDF 材料
+tar -czf backups/uploads_$(date +%F_%H%M%S).tar.gz data/uploads
+```
+
+#### 1.3 重新构建并启动
+
+```bash
+# 前后端都更新时，执行完整重建
+docker compose up -d --build
+```
+
+如果只修改了后端或前端，也可以只重建对应服务：
+
+```bash
+docker compose up -d --build backend
+docker compose up -d --build frontend
+```
+
+> 不要执行 `docker compose down -v`，`-v` 会删除 `mysql-data` 数据卷，导致数据库数据丢失。
+
+#### 1.4 检查部署结果
+
+```bash
+docker compose ps
+docker compose logs --tail=100 backend
+curl -I http://127.0.0.1/
+```
+
+查看 Flyway 最近执行的迁移：
+
+```bash
+docker compose exec -T mysql mysql -uroot -proot appraisal_db \
+  -e "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 5;"
+```
+
+#### 1.5 回滚
+
+```bash
+git checkout <上一个稳定提交>
+docker compose up -d --build
+```
+
+> Flyway 迁移是向前执行的。如果本次升级包含不兼容的数据库结构变更，仅回滚代码可能不够，需要结合升级前的数据库备份恢复数据。恢复数据库会覆盖当前数据，操作前务必再次确认。
+
+### 2. Linux + Nginx + Jar 传统方式
+
+#### 2.1 更新代码并备份
+
+```bash
+cd /path/to/performance-appraisal    # 替换为服务器实际项目目录
+git pull
+
+mkdir -p ~/backups
+
+# 备份数据库
+mysqldump -uroot -p --single-transaction --routines --triggers appraisal_db \
+  > ~/backups/db_$(date +%F_%H%M%S).sql
+
+# 备份上传文件
+tar -czf ~/backups/uploads_$(date +%F_%H%M%S).tar.gz /opt/appraisal/data/uploads
+
+# 备份旧后端 Jar 和前端静态文件
+cp /opt/appraisal/backend/app.jar ~/backups/app_$(date +%F_%H%M%S).jar
+cp -r /opt/appraisal/frontend/dist ~/backups/dist_$(date +%F_%H%M%S)
+```
+
+#### 2.2 重新构建并部署后端
+
+```bash
+cd backend
+mvn clean package -DskipTests
+
+sudo cp target/performance-appraisal-backend-1.0.0-SNAPSHOT.jar /opt/appraisal/backend/app.jar
+sudo systemctl restart appraisal
+sudo systemctl status appraisal --no-pager
+sudo journalctl -u appraisal -n 100 --no-pager
+```
+
+#### 2.3 重新构建并部署前端
+
+```bash
+cd ../frontend
+npm ci
+npm run build
+
+# 保留旧版本目录，便于快速回滚
+sudo rm -rf /opt/appraisal/frontend/dist.bak
+sudo mv /opt/appraisal/frontend/dist /opt/appraisal/frontend/dist.bak
+sudo cp -r dist /opt/appraisal/frontend/dist
+
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+#### 2.4 检查部署结果
+
+```bash
+curl -I http://127.0.0.1/
+sudo journalctl -u appraisal -n 100 --no-pager
+```
+
+浏览器登录后重点检查：登录、批次列表、月度互评、专项与创新任务创建、项目汇总与导出。
+
+#### 2.5 回滚
+
+```bash
+# 回滚后端 Jar
+sudo cp ~/backups/app_<备份时间>.jar /opt/appraisal/backend/app.jar
+sudo systemctl restart appraisal
+
+# 回滚前端静态文件
+sudo rm -rf /opt/appraisal/frontend/dist
+sudo mv /opt/appraisal/frontend/dist.bak /opt/appraisal/frontend/dist
+sudo systemctl reload nginx
+```
+
+如数据库迁移导致不兼容，需要使用升级前的数据库备份恢复数据。
+
+### 3. 再次部署检查清单
+
+| 检查项 | Docker Compose | Linux + Nginx + Jar |
+| :--- | :--- | :--- |
+| 备份数据库 | `mysqldump` 到 `backups/` | `mysqldump` 到 `~/backups/` |
+| 备份上传文件 | 打包 `data/uploads` | 打包 `/opt/appraisal/data/uploads` |
+| 更新代码 | `git pull` | `git pull` |
+| 后端更新 | `docker compose up -d --build backend` | 重新打包 Jar 并重启 `appraisal` |
+| 前端更新 | `docker compose up -d --build frontend` | `npm ci && npm run build` 后替换 `dist` |
+| 数据库迁移 | 后端启动时 Flyway 自动执行 | 后端启动时 Flyway 自动执行 |
+| 健康检查 | `docker compose ps` + 日志 | `systemctl status appraisal` + 日志 |
+| 页面验证 | 登录、批次、评分、汇总、导出 | 登录、批次、评分、汇总、导出 |
+
+> 上传的 PDF 材料属于业务数据，升级时不要删除 `data/uploads`（Docker）或 `/opt/appraisal/data/uploads`（传统部署）。如果是迁移到新服务器，还需要同时迁移数据库备份和上传目录。
+
+---
+
+## 七、 目录工程结构一览
 
 ```text
 performance-appraisal/
@@ -286,7 +450,7 @@ performance-appraisal/
 
 ---
 
-## 七、数据库表说明
+## 八、数据库表说明
 
 数据库结构与基础数据由 **Flyway** 自动管理，脚本位于 `backend/src/main/resources/db/migration/`：
 
@@ -346,7 +510,7 @@ project_score_record ──< project_score_detail >── appraisal_metric
 
 ---
 
-## 八、 常见问题排查 (FAQ)
+## 九、 常见问题排查 (FAQ)
 
 1. **Q：为什么在 Windows 上上传 PDF 报错找不到路径？**
    * A：已通过 `new File(uploadDir).getAbsoluteFile()` 与 Java NIO `Files.copy` 彻底解决，避免了 Tomcat 拼接触发临时路径不存在的问题。
