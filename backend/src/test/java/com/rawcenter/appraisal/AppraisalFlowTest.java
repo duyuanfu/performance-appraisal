@@ -640,6 +640,13 @@ public class AppraisalFlowTest {
         ew1.setWeight(new BigDecimal("100.0000"));
         batchDto.setExperts(Collections.singletonList(ew1));
         List<MetricDTO> metrics = metricService.getDefaultTemplates("SPECIAL_INNOVATION");
+        Assertions.assertEquals(3, metrics.size());
+        Assertions.assertEquals("特色亮点", metrics.get(0).getMetricName());
+        Assertions.assertEquals(0, new BigDecimal("30.0000").compareTo(metrics.get(0).getWeight()));
+        Assertions.assertEquals("产生质效", metrics.get(1).getMetricName());
+        Assertions.assertEquals(0, new BigDecimal("50.0000").compareTo(metrics.get(1).getWeight()));
+        Assertions.assertEquals("难度系数", metrics.get(2).getMetricName());
+        Assertions.assertEquals(0, new BigDecimal("20.0000").compareTo(metrics.get(2).getWeight()));
         batchDto.setMetrics(metrics);
 
         UserContext.set(UserContext.CurrentUser.builder().userId(1L).username("admin").activeRole("ADMIN").build());

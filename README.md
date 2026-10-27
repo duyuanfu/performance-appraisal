@@ -252,7 +252,7 @@ performance-appraisal/
 │   │   └── vo/ & dto/                         # 视图层与传输层对象
 │   ├── src/main/resources/
 │   │   ├── application.yml                    # 核心配置文件（含业务指标参数）
-│   │   └── db/migration/                      # Flyway 版本化脚本（V1 建表、V2 初始化账号）
+│   │   └── db/migration/                      # Flyway 版本化脚本（V1 建表、V2 初始化账号、V3 项目字段与权重调整）
 │   ├── Dockerfile                             # 后端 Docker 镜像构建文件
 │   └── pom.xml
 │
@@ -286,7 +286,67 @@ performance-appraisal/
 
 ---
 
-## 七、 常见问题排查 (FAQ)
+## 七、数据库表说明
+
+数据库结构与基础数据由 **Flyway** 自动管理，脚本位于 `backend/src/main/resources/db/migration/`：
+
+- `V1__init_schema.sql`：初始化全部业务表、索引、外键与检查约束；
+- `V2__seed_reference_data.sql`：初始化系统角色、测试账号及用户角色关系；
+- `V3__simplify_project_department_and_leader_weights.sql`：精简项目录入字段，移除项目负责人/分管领导，并调整项目中心领导细分权重结构。
+
+### 1. 权限与组织
+
+| 表名 | 说明 | 关键字段 / 关系 |
+| :--- | :--- | :--- |
+| `sys_user` | 系统用户及组织信息 | `position_category` 标识人员类别（中心主要领导、中心领导、部门正职、部门副职、专家、普通职工）；`supervisor_id`、`dept_head_id` 为自关联外键，并保留姓名快照 |
+| `sys_role` | 系统角色字典 | `role_code` 唯一，包含 `SYS_ADMIN`、`ADMIN`、`LEADER`、`DEPT_HEAD`、`DEPT_DEPUTY`、`EXPERT`、`EMPLOYEE` |
+| `sys_user_role` | 用户与角色多对多关系 | 唯一键 `(user_id, role_id)`；支持同一账号拥有多个角色并在前端切换身份 |
+
+### 2. 批次与指标
+
+| 表名 | 说明 | 关键字段 / 关系 |
+| :--- | :--- | :--- |
+| `appraisal_batch` | 统一评审批次主表 | `batch_type`：`MONTHLY`、`TARGET_PROJECT`、`SPECIAL_INNOVATION`、`ANNUAL_PROJECT`；`status`：`DRAFT`、`IN_PROGRESS`、`COMPLETED`；月度批次使用 `monthly_category`，项目批次使用 `project_category`；支持逻辑删除 `deleted` |
+| `appraisal_metric` | 批次级评审指标 | 外键 `batch_id`；唯一键 `(batch_id, metric_name)`；保存 `max_score`、`weight`、`sort_order`，服务层校验权重合计为 100 |
+
+> 默认指标模板由 `backend/src/main/resources/application.yml` 的 `app.default-metrics` 配置：目标绩效任务为“完成度 / 完成质量 / 完成时效性”（30% / 50% / 20%）；专项与创新任务为“特色亮点 / 产生质效 / 难度系数”（30% / 50% / 20%）。
+
+### 3. 月度考核
+
+| 表名 | 说明 | 关键字段 / 关系 |
+| :--- | :--- | :--- |
+| `monthly_role_weight` | 月度考评主体权重 | 外键 `batch_id`；`role_category` 区分中心主要领导、分管领导、其他中心领导、部门正职、互评正副职等 |
+| `monthly_evaluator` | 月度中心领导评分人配置 | 外键 `batch_id`、`leader_user_id`；保存领导评分权重。部门正副职互评人由人员岗位类别和参评人员动态计算，不完全依赖本表 |
+| `monthly_examinee` | 月度被考核人员 | 外键 `batch_id`、`examinee_user_id`；保存部门、岗位快照；唯一键 `(batch_id, examinee_user_id)` |
+| `monthly_score_record` | 月度评分主记录 | 记录某评分人对某被考核人的总分；唯一键 `(batch_id, leader_user_id, examinee_user_id)`；`status` 为 `DRAFT` 或 `SUBMITTED`；`version` 用于乐观锁 |
+| `monthly_score_detail` | 月度指标级评分明细 | 外键 `record_id`、`metric_id`；唯一键 `(record_id, metric_id)`；保存单项指标得分 |
+
+### 4. 项目评审
+
+| 表名 | 说明 | 关键字段 / 关系 |
+| :--- | :--- | :--- |
+| `project_item` | 参评项目信息 | 外键 `batch_id`；`department` 为自由文本部门名称，仅用于汇总排名展示；保存申报材料/附件 PDF 路径；支持逻辑删除 `deleted`。V3 后不再保存项目负责人和分管领导 |
+| `project_role_weight` | 项目考评主体权重 | 外键 `batch_id`；`role_category` 包含 `CENTER_LEADER_TOTAL`、`PRIMARY_LEADER`、`OTHER_LEADER`、`DEPT_HEAD`、`EXPERT`；专项与创新任务默认 40%/60%，目标绩效任务默认 30%/70%（由业务层初始化） |
+| `project_expert` | 项目评审专家配置 | 外键 `batch_id`、`expert_user_id`；保存专家权重；唯一键 `(batch_id, expert_user_id)` |
+| `project_score_record` | 项目评分主记录 | 记录某评分人对某项目的总分；唯一键 `(batch_id, expert_user_id, project_id)`；`evaluator_role_type` 标识评分主体角色；`status` 为 `DRAFT` 或 `SUBMITTED`；`version` 用于乐观锁 |
+| `project_score_detail` | 项目指标级评分明细 | 外键 `record_id`、`metric_id`；唯一键 `(record_id, metric_id)`；保存单项指标得分 |
+
+### 5. 核心关系概览
+
+```text
+sys_user ──< sys_user_role >── sys_role
+appraisal_batch ──< appraisal_metric
+appraisal_batch ──< monthly_evaluator / monthly_examinee / monthly_score_record
+monthly_score_record ──< monthly_score_detail >── appraisal_metric
+appraisal_batch ──< project_item / project_expert / project_score_record
+project_score_record ──< project_score_detail >── appraisal_metric
+```
+
+> 说明：`appraisal_batch` 是月度考核与项目评审的统一批次主表；批次删除时，其下的指标、评分记录和明细按外键级联清理。用户被评分记录引用时采用受限删除，避免破坏历史评分数据。
+
+---
+
+## 八、 常见问题排查 (FAQ)
 
 1. **Q：为什么在 Windows 上上传 PDF 报错找不到路径？**
    * A：已通过 `new File(uploadDir).getAbsoluteFile()` 与 Java NIO `Files.copy` 彻底解决，避免了 Tomcat 拼接触发临时路径不存在的问题。
