@@ -68,6 +68,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
   };
 
   const showRank = data?.batchType === 'TARGET_PROJECT' || data?.batchType === 'SPECIAL_INNOVATION';
+  const showScoreCoefficient = data?.batchType === 'TARGET_PROJECT';
 
   const renderScore = (s?: number | null) =>
     s === undefined || s === null ? '-' : Number(s).toFixed(4);
@@ -134,7 +135,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
         </Text>
       ),
     },
-    ...(showRank
+    ...(showScoreCoefficient
       ? [
           {
             title: '得分系数',
@@ -230,7 +231,7 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
             ))}
           </Space>
         </div>
-        {data?.averageScore !== undefined && (
+        {showScoreCoefficient && data?.averageScore !== undefined && (
           <Text strong style={{ fontSize: 13 }}>
             所有参评项目平均分：<span style={{ color: '#1890ff' }}>{Number(data.averageScore).toFixed(4)} 分</span>
           </Text>
@@ -275,7 +276,9 @@ export const ProjectBatchSummaryModal: React.FC<Props> = ({ batchId, open, onClo
                     </Text>
                   ),
                 },
-                { label: '得分系数', value: renderScore(detailRow.scoreCoefficient) },
+                ...(showScoreCoefficient
+                  ? [{ label: '得分系数', value: renderScore(detailRow.scoreCoefficient) }]
+                  : []),
                 { label: '排序', value: `第 ${detailRow.rank} 名` },
               ]
             : []

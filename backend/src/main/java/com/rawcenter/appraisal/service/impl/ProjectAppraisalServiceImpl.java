@@ -163,8 +163,7 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
             throw new BusinessException(400, "评审批次名称【" + dto.getBatchName().trim() + "】已存在，请使用不同的批次名称！");
         }
 
-        // 先确定批次类型：专项与创新任务默认中心主要领导 40%、其他中心领导 60%；
-        // 目标绩效任务（含历史 ANNUAL_PROJECT）保持 30% / 70%。
+        // 专项与创新任务与目标绩效任务（含历史 ANNUAL_PROJECT）均默认中心主要领导 30%、其他中心领导 70%。
         String batchType = StringUtils.hasText(dto.getBatchType()) ? dto.getBatchType() : "TARGET_PROJECT";
         if (dto.getId() != null && !StringUtils.hasText(dto.getBatchType())) {
             AppraisalBatch existingBatch = batchMapper.selectById(dto.getId());
@@ -172,9 +171,8 @@ public class ProjectAppraisalServiceImpl implements ProjectAppraisalService {
                 batchType = existingBatch.getBatchType();
             }
         }
-        boolean isSpecialInnovation = "SPECIAL_INNOVATION".equalsIgnoreCase(batchType);
-        BigDecimal defaultPrimaryWeight = isSpecialInnovation ? new BigDecimal("40.0000") : new BigDecimal("30.0000");
-        BigDecimal defaultOtherWeight = isSpecialInnovation ? new BigDecimal("60.0000") : new BigDecimal("70.0000");
+        BigDecimal defaultPrimaryWeight = new BigDecimal("30.0000");
+        BigDecimal defaultOtherWeight = new BigDecimal("70.0000");
 
         // 1. 考评主体角色及权重校验与默认装配（按《需求文档.md》标准权重）
         List<ProjectBatchSaveDTO.RoleWeightDTO> roleWeights = dto.getRoleWeights();

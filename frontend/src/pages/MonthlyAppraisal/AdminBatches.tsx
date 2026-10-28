@@ -381,9 +381,10 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
     {
       title: '操作',
       key: 'action',
-      width: 320,
+      width: 370,
+      fixed: 'right' as const,
       render: (_: any, record: MonthlyBatchVO) => (
-        <Space size="middle">
+        <Space size="small" wrap={false}>
           <Button
             type="link"
             size="small"
@@ -529,6 +530,7 @@ export const MonthlyAdminBatchesPage: React.FC<Props> = ({ category }) => {
         dataSource={filteredBatches}
         loading={loading}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 1400 }}
       />
 
       {/* Summary Matrix Modal */}

@@ -359,7 +359,7 @@ performance-appraisal/
 | 表名 | 说明 | 关键字段 / 关系 |
 | :--- | :--- | :--- |
 | `project_item` | 参评项目信息 | 外键 `batch_id`；`department` 为自由文本部门名称，仅用于汇总排名展示；保存申报材料/附件 PDF 路径；支持逻辑删除 `deleted`。V3 后不再保存项目负责人和分管领导 |
-| `project_role_weight` | 项目考评主体权重 | 外键 `batch_id`；`role_category` 包含 `CENTER_LEADER_TOTAL`、`PRIMARY_LEADER`、`OTHER_LEADER`、`DEPT_HEAD`、`EXPERT`；专项与创新任务默认 40%/60%，目标绩效任务默认 30%/70%（由业务层初始化） |
+| `project_role_weight` | 项目考评主体权重 | 外键 `batch_id`；`role_category` 包含 `CENTER_LEADER_TOTAL`、`PRIMARY_LEADER`、`OTHER_LEADER`、`DEPT_HEAD`、`EXPERT`；专项与创新任务与目标绩效任务均默认 30%/70%（由业务层初始化） |
 | `project_expert` | 项目评审专家配置 | 外键 `batch_id`、`expert_user_id`；保存专家权重；唯一键 `(batch_id, expert_user_id)` |
 | `project_score_record` | 项目评分主记录 | 记录某评分人对某项目的总分；唯一键 `(batch_id, expert_user_id, project_id)`；`evaluator_role_type` 标识评分主体角色；`status` 为 `DRAFT` 或 `SUBMITTED`；`version` 用于乐观锁 |
 | `project_score_detail` | 项目指标级评分明细 | 外键 `record_id`、`metric_id`；唯一键 `(record_id, metric_id)`；保存单项指标得分 |

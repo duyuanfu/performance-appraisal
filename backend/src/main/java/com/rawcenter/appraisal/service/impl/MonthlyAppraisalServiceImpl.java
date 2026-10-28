@@ -1412,51 +1412,13 @@ public class MonthlyAppraisalServiceImpl implements MonthlyAppraisalService {
                 excelWriter.write(deputyData, sheet2);
             }
 
-            // Sheet 3: 全员综合明细表
-            List<List<String>> head = new ArrayList<>();
-            head.add(List.of("排名"));
-            head.add(List.of("姓名"));
-            head.add(List.of("部门"));
-            head.add(List.of("职务"));
-
-            if (summary.getMetrics() != null) {
-                for (AppraisalMetric m : summary.getMetrics()) {
-                    head.add(List.of(m.getMetricName() + " (" + m.getMaxScore().stripTrailingZeros().toPlainString() + "分)"));
-                }
+            // 若无正职/副职数据，生成空汇总表兜底
+            if (sheetIndex == 0) {
+                com.alibaba.excel.write.metadata.WriteSheet emptySheet = EasyExcel.writerSheet(0, "考评汇总表")
+                        .head(List.of(List.of("暂无数据")))
+                        .build();
+                excelWriter.write(Collections.emptyList(), emptySheet);
             }
-
-            for (MonthlySummaryVO.LeaderHeaderVO l : summary.getLeaders()) {
-                head.add(List.of(l.getRealName() + " (" + l.getWeight().stripTrailingZeros().toPlainString() + "%)"));
-            }
-            head.add(List.of("综合得分"));
-
-            List<List<Object>> dataList = new ArrayList<>();
-            for (MonthlySummaryVO.SummaryRowVO r : summary.getRows()) {
-                List<Object> row = new ArrayList<>();
-                row.add(r.getRank());
-                row.add(r.getRealName());
-                row.add(r.getDepartment());
-                row.add(r.getPosition());
-
-                if (summary.getMetrics() != null) {
-                    for (AppraisalMetric m : summary.getMetrics()) {
-                        BigDecimal ms = r.getMetricAvgScores() != null ? r.getMetricAvgScores().get(m.getId()) : null;
-                        row.add(ms != null ? ms.setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                    }
-                }
-
-                for (MonthlySummaryVO.LeaderHeaderVO l : summary.getLeaders()) {
-                    BigDecimal score = r.getLeaderScores().get(l.getLeaderUserId());
-                    row.add(score != null ? score.setScale(4, RoundingMode.HALF_UP).toString() : "0.0000");
-                }
-                row.add(r.getCompositeScore().setScale(4, RoundingMode.HALF_UP).toString());
-                dataList.add(row);
-            }
-
-            com.alibaba.excel.write.metadata.WriteSheet sheetAll = EasyExcel.writerSheet(sheetIndex, "综合明细")
-                    .head(head)
-                    .build();
-            excelWriter.write(dataList, sheetAll);
 
             excelWriter.finish();
             return out.toByteArray();

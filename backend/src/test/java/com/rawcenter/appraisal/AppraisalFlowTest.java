@@ -621,10 +621,17 @@ public class AppraisalFlowTest {
                 .anyMatch(d -> d.getEvaluatorUserId().equals(3L) && "其他中心领导".equals(d.getRoleName())),
                 "副职考核中中心主要领导的评分应并入其他中心领导");
 
-        // 5. Test Multi-sheet export
+        // 5. Test Multi-sheet export: 确认包含正/副职表，且已删除“综合明细”Sheet
         byte[] excelBytes = monthlyService.exportMonthlyBatchExcel(batchId);
         Assertions.assertNotNull(excelBytes);
         Assertions.assertTrue(excelBytes.length > 0);
+        try (org.apache.poi.ss.usermodel.Workbook workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(new java.io.ByteArrayInputStream(excelBytes))) {
+            Assertions.assertNotNull(workbook.getSheet("内设部门正职考评汇总表"));
+            Assertions.assertNotNull(workbook.getSheet("内设部门副职考评汇总表"));
+            Assertions.assertNull(workbook.getSheet("综合明细"), "正/副职绩效评审汇总导出的excel表应已删除综合明细sheet");
+        } catch (Exception e) {
+            Assertions.fail("解析导出 Excel 失败: " + e.getMessage());
+        }
     }
 
     @Test
@@ -656,12 +663,12 @@ public class AppraisalFlowTest {
         Assertions.assertFalse(batches.isEmpty());
         Long batchId = batches.get(0).getId();
 
-        // 专项与创新任务默认中心领导内部细分权重：主要领导 40% + 其他中心领导 60%
+        // 专项与创新任务默认中心领导内部细分权重：主要领导 30% + 其他中心领导 70%
         AppraisalBatch specialDetail = projectService.getProjectBatchDetail(batchId);
         Map<String, BigDecimal> specialRoleWeightMap = specialDetail.getRoleWeights().stream()
                 .collect(Collectors.toMap(rw -> rw.getRoleCategory(), rw -> rw.getWeight()));
-        Assertions.assertEquals(new BigDecimal("40.0000"), specialRoleWeightMap.get("PRIMARY_LEADER"));
-        Assertions.assertEquals(new BigDecimal("60.0000"), specialRoleWeightMap.get("OTHER_LEADER"));
+        Assertions.assertEquals(new BigDecimal("30.0000"), specialRoleWeightMap.get("PRIMARY_LEADER"));
+        Assertions.assertEquals(new BigDecimal("70.0000"), specialRoleWeightMap.get("OTHER_LEADER"));
 
         // 2. Add candidate projects
         ProjectItemSaveDTO p1 = new ProjectItemSaveDTO();

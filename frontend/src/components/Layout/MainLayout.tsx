@@ -392,12 +392,13 @@ export const MainLayout: React.FC = () => {
           />
         </Sider>
 
-        <Layout style={{ padding: '20px', minHeight: 'calc(100vh - 64px)' }}>
+        <Layout style={{ padding: '20px', minHeight: 'calc(100vh - 64px)', minWidth: 0 }}>
           <Content
             style={{
               padding: 24,
               margin: 0,
               minHeight: 280,
+              minWidth: 0,
               background: '#fff',
               borderRadius: 8,
               boxShadow: '0 1px 4px rgba(0, 0, 0, 0.05)',

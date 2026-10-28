@@ -68,8 +68,8 @@ const TARGET_PROJECT_LEADER_SUB_WEIGHTS: ProjectRoleWeightItem[] = [
 ];
 
 const SPECIAL_INNOVATION_LEADER_SUB_WEIGHTS: ProjectRoleWeightItem[] = [
-  { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导', weight: 40, sortOrder: 1 },
-  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导', weight: 60, sortOrder: 2 },
+  { roleCategory: 'PRIMARY_LEADER', roleName: '中心主要领导', weight: 30, sortOrder: 1 },
+  { roleCategory: 'OTHER_LEADER', roleName: '其他中心领导', weight: 70, sortOrder: 2 },
 ];
 
 const getDefaultLeaderSubWeights = (isSpecialInnovation: boolean): ProjectRoleWeightItem[] =>
@@ -169,8 +169,7 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
         ['PRIMARY_LEADER', 'OTHER_LEADER'].includes(rw.roleCategory)
       );
       if (main.length === 3) setMainRoleWeights(main);
-      // 专项与创新任务重新发起时按新标准使用 40%/60%，不沿用历史批次的 30%/70%
-      if (!isSpecialInnovation && sub.length === 2) setLeaderSubWeights(sub);
+      if (sub.length === 2) setLeaderSubWeights(sub);
     }
 
     form.setFieldsValue({
@@ -382,9 +381,10 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
     {
       title: '操作',
       key: 'action',
-      width: 380,
+      width: 470,
+      fixed: 'right' as const,
       render: (_: any, record: ProjectBatchVO) => (
-        <Space size="small">
+        <Space size="small" wrap={false}>
           <Button
             type="link"
             size="small"
@@ -594,6 +594,7 @@ export const AnnualProjectAdminBatchesPage: React.FC<Props> = ({ batchType = 'TA
         dataSource={filteredBatches}
         loading={loading}
         pagination={{ pageSize: 10 }}
+        scroll={{ x: 1450 }}
       />
 
       {/* Project Candidates Management Modal */}
